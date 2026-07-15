@@ -1,6 +1,6 @@
 services:
   domain-manager:
-    build: .
+    image: xiaoman1221/domain-manager:latest
     container_name: domain-manager
     restart: unless-stopped
     ports:

@@ -29,13 +29,28 @@
 
 ## 快速开始
 
-### 环境要求
+### Docker 部署（推荐）
+
+```bash
+docker compose up -d
+```
+
+包含三个服务：
+- **domain-manager** - 主应用 (`xiaoman1221/domain-manager:latest`)
+- **whois** - WHOIS查询服务 (`programzmh/next-whois-ui`)
+- **icp** - ICP备案查询服务 (`yiminger/ymicp`)
+
+访问 http://localhost:8080
+
+### 手动部署
+
+**环境要求**
 
 - Go 1.26+
 - Node.js 18+
 - npm
 
-### 配置
+**配置**
 
 复制 `.env.example` 为 `.env` 并修改配置：
 
@@ -49,24 +64,19 @@ cp .env.example .env
 | `GIN_MODE` | Gin模式（debug/release） | debug |
 | `DB_PATH` | 数据库文件路径 | domain_manager.db |
 | `JWT_KEY` | JWT密钥 | - |
-| `WHOIS_API_URL` | WHOIS API地址 | https://who.zmh.me |
-| `ICP_API_URL` | ICP备案API地址 | http://127.0.0.1:16181 |
+| `WHOIS_API_URL` | WHOIS API地址 | http://whois:3000 |
+| `ICP_API_URL` | ICP备案API地址 | http://icp:16181 |
 
-### 构建运行
-
-**构建前端**
+**构建运行**
 
 ```bash
-cd web
-npm install
-npm run build
-```
+# 一键构建（前端+后端）
+make
+# 或
+bash build.sh
 
-**构建并运行后端**
-
-```bash
-go build -o domain-manager.exe .
-./domain-manager.exe
+# 运行
+./domain-manager
 ```
 
 ### 默认账号
