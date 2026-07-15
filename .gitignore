@@ -27,5 +27,8 @@ web/.vite/
 .DS_Store
 Thumbs.db
 
+# Docker data
+data/
+
 # Env
 .env

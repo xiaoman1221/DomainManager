@@ -1,0 +1,10 @@
+.git
+.idea
+.vscode
+*.exe
+*.db
+web/node_modules
+web/dist
+web/.vite
+.env
+domain-manager

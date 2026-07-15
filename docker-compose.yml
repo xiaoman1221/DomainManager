@@ -1,0 +1,16 @@
+services:
+  domain-manager:
+    build: .
+    container_name: domain-manager
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=8080
+      - GIN_MODE=release
+      - DB_PATH=/app/data/domain.db
+      - JWT_KEY=domain-manager-secret-key-2026
+      - WHOIS_API_URL=https://whois.1v.fit
+      - ICP_API_URL=http://host.docker.internal:16181
