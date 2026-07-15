@@ -12,5 +12,18 @@ services:
       - GIN_MODE=release
       - DB_PATH=/app/data/domain.db
       - JWT_KEY=domain-manager-secret-key-2026
-      - WHOIS_API_URL=https://whois.1v.fit
-      - ICP_API_URL=http://host.docker.internal:16181
+      - WHOIS_API_URL=http://whois:3000
+      - ICP_API_URL=http://icp:16181
+    depends_on:
+      - whois
+      - icp
+
+  whois:
+    image: programzmh/next-whois-ui
+    container_name: whois
+    restart: unless-stopped
+
+  icp:
+    image: yiminger/ymicp
+    container_name: icp
+    restart: unless-stopped
