@@ -5,9 +5,12 @@ import (
 	"DomainManager/database"
 	"DomainManager/router"
 	"embed"
+	"io"
 	"io/fs"
 	"log"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -27,6 +30,22 @@ func main() {
 		log.Fatalf("failed to load embedded frontend: %v", err)
 	}
 
+	serveFile := func(c *gin.Context, name string) {
+		f, err := sub.Open(name)
+		if err != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		defer f.Close()
+		data, err := io.ReadAll(f)
+		if err != nil {
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+		ext := filepath.Ext(name)
+		c.Data(http.StatusOK, mime.TypeByExtension(ext), data)
+	}
+
 	r.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
 		if strings.HasPrefix(path, "/api") {
@@ -38,10 +57,10 @@ func main() {
 			clean = "index.html"
 		}
 		if _, err := fs.Stat(sub, clean); err == nil {
-			c.FileFromFS(clean, http.FS(sub))
+			serveFile(c, clean)
 			return
 		}
-		c.FileFromFS("index.html", http.FS(sub))
+		serveFile(c, "index.html")
 	})
 
 	log.Printf("Server starting on port %s", config.AppConfig.Port)
