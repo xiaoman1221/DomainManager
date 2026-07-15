@@ -4,14 +4,17 @@ import (
 	"DomainManager/config"
 	"DomainManager/database"
 	"DomainManager/router"
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
+
+//go:embed web/dist/*
+var frontendFS embed.FS
 
 func main() {
 	config.Load()
@@ -19,23 +22,28 @@ func main() {
 
 	r := router.Setup()
 
-	frontendDir := "./web/dist"
-	if _, err := os.Stat(frontendDir); err == nil {
-		r.NoRoute(func(c *gin.Context) {
-			path := c.Request.URL.Path
-			if strings.HasPrefix(path, "/api") {
-				c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-				return
-			}
-			filePath := filepath.Join(frontendDir, path)
-			if _, err := os.Stat(filePath); os.IsNotExist(err) {
-				c.File(filepath.Join(frontendDir, "index.html"))
-			} else {
-				c.File(filePath)
-			}
-		})
-		log.Printf("Serving frontend from %s", frontendDir)
+	sub, err := fs.Sub(frontendFS, "web/dist")
+	if err != nil {
+		log.Fatalf("failed to load embedded frontend: %v", err)
 	}
+
+	r.NoRoute(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/api") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		path = strings.TrimPrefix(path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+		if f, err := sub.Open(path); err == nil {
+			f.Close()
+			c.FileFromFS(path, http.FS(sub))
+			return
+		}
+		c.FileFromFS("index.html", http.FS(sub))
+	})
 
 	log.Printf("Server starting on port %s", config.AppConfig.Port)
 	if err := r.Run(":" + config.AppConfig.Port); err != nil {
