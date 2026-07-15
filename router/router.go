@@ -9,6 +9,8 @@ import (
 
 func Setup() *gin.Engine {
 	r := gin.Default()
+	r.RedirectTrailingSlash = false
+	r.RedirectFixedPath = false
 
 	r.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")

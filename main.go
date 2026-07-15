@@ -33,13 +33,12 @@ func main() {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 			return
 		}
-		path = strings.TrimPrefix(path, "/")
-		if path == "" {
-			path = "index.html"
+		clean := strings.TrimPrefix(path, "/")
+		if clean == "" {
+			clean = "index.html"
 		}
-		if f, err := sub.Open(path); err == nil {
-			f.Close()
-			c.FileFromFS(path, http.FS(sub))
+		if _, err := fs.Stat(sub, clean); err == nil {
+			c.FileFromFS(clean, http.FS(sub))
 			return
 		}
 		c.FileFromFS("index.html", http.FS(sub))
