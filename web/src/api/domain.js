@@ -1,0 +1,31 @@
+import request from './request'
+
+export const getDomains = (params) => request.get('/domains', { params })
+
+export const getDomain = (id) => request.get(`/domains/${id}`)
+
+export const createDomain = (data) => request.post('/domains', data)
+
+export const updateDomain = (id, data) => request.put(`/domains/${id}`, data)
+
+export const deleteDomain = (id) => request.delete(`/domains/${id}`)
+
+export const getDomainStats = () => request.get('/domains/stats')
+
+export const queryWhois = (domain) => request.get('/whois', { params: { domain } })
+
+export const queryICP = (domain) => request.get('/icp', { params: { domain } })
+
+export const refreshDomainInfo = (id) => request.post(`/domains/${id}/refresh`)
+
+export const queryRenewalPrice = (id) => request.get(`/domains/${id}/renewal-price`)
+
+export const batchQueryRenewalPrice = (ids) => request.post('/domains/batch-renewal-price', { ids })
+
+export const batchDeleteDomains = (ids) => request.post('/domains/batch-delete', { ids })
+
+export const batchUpdateDomains = (ids, fields) => request.post('/domains/batch-update', { ids, fields })
+
+export const exportDomains = () => request.get('/domains/export', { responseType: 'blob' })
+
+export const importDomainsCSV = (formData) => request.post('/domains/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
