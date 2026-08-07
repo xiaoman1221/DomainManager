@@ -21,7 +21,19 @@ func QueryWhois(c *gin.Context) {
 		return
 	}
 
-	info, err := services.QueryWhois(domain)
+	var info *services.WhoisInfo
+	var err error
+
+	if services.IsDigitalPlatDomain(domain) {
+		info, err = services.QueryDigitalPlatWhois(domain)
+		if err != nil {
+			log.Printf("DigitalPlat WHOIS failed for %s, falling back to default WHOIS: %v", domain, err)
+			info, err = services.QueryWhois(domain)
+		}
+	} else {
+		info, err = services.QueryWhois(domain)
+	}
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -80,7 +92,7 @@ func RefreshDomainInfo(c *gin.Context) {
 }
 
 func refreshWhoisForDomain(domain *models.Domain) error {
-	info, err := services.QueryWhois(domain.Name)
+	info, err := queryDomainWhois(domain)
 	if err != nil {
 		log.Printf("WHOIS query failed for %s: %v", domain.Name, err)
 		return err
@@ -132,6 +144,27 @@ func refreshWhoisForDomain(domain *models.Domain) error {
 
 	log.Printf("WHOIS updated for %s: registrar=%s, expiry=%v", domain.Name, domain.RegistrarWhois, domain.ExpiryDate)
 	return nil
+}
+
+// queryDomainWhois returns WHOIS info for a domain. For DigitalPlat domains
+// (matched by suffix or by registrar type), it prefers the DigitalPlat WHOIS
+// service and falls back to the default WHOIS API on failure.
+func queryDomainWhois(domain *models.Domain) (*services.WhoisInfo, error) {
+	useDigitalPlat := services.IsDigitalPlatDomain(domain.Name)
+	if !useDigitalPlat && domain.Registrar != "" {
+		var registrar models.Registrar
+		if err := database.DB.Where("name = ?", domain.Registrar).First(&registrar).Error; err == nil && registrar.Type == "digitalplat" {
+			useDigitalPlat = true
+		}
+	}
+	if useDigitalPlat {
+		info, err := services.QueryDigitalPlatWhois(domain.Name)
+		if err == nil {
+			return info, nil
+		}
+		log.Printf("DigitalPlat WHOIS failed for %s, falling back to default WHOIS: %v", domain.Name, err)
+	}
+	return services.QueryWhois(domain.Name)
 }
 
 func refreshICPForDomain(domain *models.Domain) error {
@@ -273,11 +306,11 @@ func BatchQueryRenewalPrice(c *gin.Context) {
 	var cacheMu sync.Mutex
 
 	type result struct {
-		ID     uint   `json:"id"`
-		Name   string `json:"name"`
+		ID     uint    `json:"id"`
+		Name   string  `json:"name"`
 		Price  float64 `json:"price"`
-		Source string `json:"source"`
-		Error  string `json:"error,omitempty"`
+		Source string  `json:"source"`
+		Error  string  `json:"error,omitempty"`
 	}
 
 	results := make([]result, len(domains))

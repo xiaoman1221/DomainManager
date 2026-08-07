@@ -41,6 +41,8 @@ func FetchDomainsFromRegistrar(registrar models.Registrar) ([]models.Domain, err
 		return fetchDynadotDomains(registrar)
 	case "namesilo":
 		return fetchNameSiloDomains(registrar)
+	case "digitalplat":
+		return fetchDigitalPlatDomains(registrar)
 	default:
 		return nil, fmt.Errorf("registrar type %q does not support automatic domain fetching, please import domains manually", registrar.Type)
 	}
@@ -217,9 +219,9 @@ func fetchCloudflareDomains(registrar models.Registrar) ([]models.Domain, error)
 	var domains []models.Domain
 	for _, z := range result.Result {
 		domains = append(domains, models.Domain{
-			Name:       z.Name,
-			Registrar:  "Cloudflare",
-			Status:     "active",
+			Name:        z.Name,
+			Registrar:   "Cloudflare",
+			Status:      "active",
 			Nameservers: "",
 		})
 	}
@@ -342,14 +344,14 @@ func parseAliyunResponse(body []byte, _ string) ([]models.Domain, error) {
 	var result struct {
 		Data struct {
 			Domain []struct {
-				DomainName     string `json:"DomainName"`
-				ExpirationDate string `json:"ExpirationDate"`
+				DomainName       string `json:"DomainName"`
+				ExpirationDate   string `json:"ExpirationDate"`
 				RegistrationDate string `json:"RegistrationDate"`
-				InstanceId     string `json:"InstanceId"`
-				DomainStatus   string `json:"DomainStatus"`
-				Ccompany       string `json:"Ccompany"`
-				AutoRenewEnabled bool  `json:"AutoRenewEnabled"`
-				Remark         string `json:"Remark"`
+				InstanceId       string `json:"InstanceId"`
+				DomainStatus     string `json:"DomainStatus"`
+				Ccompany         string `json:"Ccompany"`
+				AutoRenewEnabled bool   `json:"AutoRenewEnabled"`
+				Remark           string `json:"Remark"`
 			} `json:"Domain"`
 		} `json:"Data"`
 		TotalItemNum int    `json:"TotalItemNum"`

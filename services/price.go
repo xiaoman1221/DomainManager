@@ -76,7 +76,7 @@ func QueryRegistrarPrices(domain string) ([]models.PriceResult, error) {
 
 func extractPrice(body, tld string) float64 {
 	var pricePatterns = []string{
-		fmt.Sprintf(`"price":%f`, 0),
+		fmt.Sprintf(`"price":%f`, 0.0),
 	}
 	_ = pricePatterns
 
@@ -88,15 +88,15 @@ func GetFallbackPrices(tld string) []models.PriceResult {
 	const usdToCNY = 7.25
 
 	basePrices := map[string]float64{
-		"com":   9.99,
-		"net":   11.99,
-		"org":   8.99,
-		"io":    32.00,
-		"co":    25.99,
-		"info":  3.99,
-		"biz":   5.99,
-		"xyz":   1.99,
-		"site":  2.99,
+		"com":    9.99,
+		"net":    11.99,
+		"org":    8.99,
+		"io":     32.00,
+		"co":     25.99,
+		"info":   3.99,
+		"biz":    5.99,
+		"xyz":    1.99,
+		"site":   2.99,
 		"online": 1.99,
 		"store":  2.99,
 		"tech":   4.99,

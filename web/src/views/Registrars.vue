@@ -104,8 +104,18 @@
         <el-form-item label="API端点">
           <el-input v-model="form.api_endpoint" placeholder="API地址（可选，使用默认）" />
         </el-form-item>
+        <el-alert
+          v-if="form.type === 'digitalplat'"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 16px"
+        >
+          DigitalPlat：在 <a href="https://dash.domain.digitalplat.org/dashboard/api/keys" target="_blank" style="color:#409EFF">Dashboard → API Keys</a>
+          创建 <code>dp_live_...</code> 密钥，填入下方「API Key」即可自动获取域名；WHOIS 将使用官方 RDAP 服务器 <code>rdap.digitalplat.org</code> 查询。
+        </el-alert>
         <el-form-item label="API Key">
-          <el-input v-model="form.api_key" placeholder="API Key / AccessKey ID" show-password />
+          <el-input v-model="form.api_key" placeholder="API Key / AccessKey ID / dp_live_..." show-password />
         </el-form-item>
         <el-form-item label="API Secret">
           <el-input v-model="form.api_secret" placeholder="API Secret / AccessKey Secret" show-password />
@@ -286,6 +296,7 @@ async function fetchTypes() {
       { value: 'namecheap', label: 'Namecheap' },
       { value: 'namesilo', label: 'NameSilo' },
       { value: 'dynadot', label: 'Dynadot' },
+      { value: 'digitalplat', label: 'DigitalPlat（免费域名）' },
       { value: 'porkbun', label: 'Porkbun' },
       { value: 'other', label: '其他（手动导入）' },
     ]
@@ -334,7 +345,7 @@ async function handleImport() {
     if (res.error) {
       ElMessage.error(res.error)
     } else if (res.imported === 0 && res.updated === 0 && res.skipped === 0 && (res.refreshed || 0) === 0) {
-      ElMessage.warning('未导入任何域名。支持自动导入的注册商: 阿里云、腾讯云、Cloudflare、GoDaddy、Namecheap、NameSilo、Dynadot。其他类型请手动输入域名列表。')
+      ElMessage.warning('未导入任何域名。支持自动导入的注册商: 阿里云、腾讯云、Cloudflare、GoDaddy、Namecheap、NameSilo、Dynadot、DigitalPlat。其他类型请手动输入域名列表。')
     } else {
       ElMessage.success(
         res.message || `导入完成: 新增 ${res.imported} 个, 更新 ${res.updated} 个, 刷新 ${res.refreshed || 0} 个, 跳过 ${res.skipped} 个`

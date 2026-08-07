@@ -55,8 +55,8 @@
             </el-table-column>
             <el-table-column label="状态" width="100">
               <template #default="{ row }">
-                <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small">
-                  {{ row.status === 'active' ? '正常' : '已过期' }}
+                <el-tag :type="domainStatusInfo(row).type" size="small">
+                  {{ domainStatusInfo(row).text }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -99,6 +99,47 @@ import { getDomainStats, getDomains } from '../api/domain'
 
 const stats = ref({ total: 0, active: 0, expiring_soon: 0 })
 const recentDomains = ref([])
+
+const domainStatusMap = {
+  'active': { type: 'success', text: '正常' },
+  'ok': { type: 'success', text: '正常' },
+  'expired': { type: 'danger', text: '已过期' },
+  'inactive': { type: 'warning', text: '未激活' },
+  'pending': { type: 'warning', text: '处理中' },
+  'hold': { type: 'warning', text: '暂停' },
+  'clienthold': { type: 'warning', text: '注册商暂停' },
+  'serverhold': { type: 'warning', text: '注册局暂停' },
+  'redemptionperiod': { type: 'danger', text: '赎回期' },
+  'pendingdelete': { type: 'danger', text: '待删除' },
+  'pendingtransfer': { type: 'warning', text: '转移中' },
+  'pendingrenew': { type: 'warning', text: '待续费' },
+  'unknown': { type: 'info', text: '未知' },
+}
+
+function domainStatusInfo(d) {
+  if (!d) return { type: 'info', text: '-' }
+  const status = String(d.status || '').trim().toLowerCase()
+  if (domainStatusMap[status]) return domainStatusMap[status]
+
+  const whoisStatus = String(d.whois_status || '').trim().toLowerCase()
+  if (whoisStatus) {
+    if (whoisStatus.includes('active') || whoisStatus.split(/[,;]/)[0].trim() === 'ok') return { type: 'success', text: '正常' }
+    if (whoisStatus.includes('expired') || whoisStatus.includes('redemption') || whoisStatus.includes('pendingdelete')) return { type: 'danger', text: '已过期' }
+    if (whoisStatus.includes('hold')) return { type: 'warning', text: '暂停' }
+    const first = whoisStatus.split(/[,;]/)[0].trim()
+    if (first) return { type: 'info', text: first }
+  }
+
+  if (d.expiry_date) {
+    const exp = new Date(d.expiry_date)
+    if (!isNaN(exp.getTime())) {
+      return exp.getTime() < Date.now() ? { type: 'danger', text: '已过期' } : { type: 'success', text: '正常' }
+    }
+  }
+
+  if (status) return { type: 'info', text: status }
+  return { type: 'info', text: '未知' }
+}
 
 onMounted(async () => {
   try {

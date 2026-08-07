@@ -204,11 +204,11 @@ func ImportDomainsFromRegistrar(c *gin.Context) {
 	database.DB.Model(&registrar).Update("last_sync_at", now)
 
 	c.JSON(http.StatusOK, gin.H{
-		"imported": imported,
-		"updated":  updated,
+		"imported":  imported,
+		"updated":   updated,
 		"refreshed": refreshed,
-		"skipped":  skipped,
-		"message":  fmt.Sprintf("导入完成: 新增 %d 个, 更新 %d 个, 刷新 %d 个, 跳过 %d 个", imported, updated, refreshed, skipped),
+		"skipped":   skipped,
+		"message":   fmt.Sprintf("导入完成: 新增 %d 个, 更新 %d 个, 刷新 %d 个, 跳过 %d 个", imported, updated, refreshed, skipped),
 	})
 }
 
@@ -225,11 +225,12 @@ func GetRegistrarTypes(c *gin.Context) {
 		{"value": "namesilo", "label": "NameSilo", "region": "global"},
 		{"value": "porkbun", "label": "Porkbun", "region": "global"},
 		{"value": "dynadot", "label": "Dynadot", "region": "global"},
+		{"value": "digitalplat", "label": "DigitalPlat（免费域名）", "region": "global"},
 		{"value": "google", "label": "Google Domains", "region": "global"},
 		{"value": "amazon", "label": "AWS Route53", "region": "global"},
 		{"value": "other", "label": "其他（手动导入）", "region": "other"},
 	}
-		c.JSON(http.StatusOK, gin.H{"data": types})
+	c.JSON(http.StatusOK, gin.H{"data": types})
 }
 
 func ExportRegistrars(c *gin.Context) {

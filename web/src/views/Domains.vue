@@ -281,8 +281,8 @@
               <el-descriptions-item label="域名">{{ detailDomain?.name }}</el-descriptions-item>
               <el-descriptions-item label="注册商">{{ detailDomain?.registrar || '-' }}</el-descriptions-item>
               <el-descriptions-item label="状态">
-                <el-tag :type="detailDomain?.status === 'active' ? 'success' : 'danger'" size="small">
-                  {{ detailDomain?.status === 'active' ? '正常' : '已过期' }}
+                <el-tag :type="domainStatusInfo(detailDomain).type" size="small">
+                  {{ domainStatusInfo(detailDomain).text }}
                 </el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="到期时间">{{ detailDomain?.expiry_date ? detailDomain.expiry_date.split('T')[0] : '-' }}</el-descriptions-item>
@@ -382,7 +382,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  getDomains, createDomain, updateDomain, deleteDomain,
+  getDomains, getDomain, createDomain, updateDomain, deleteDomain,
   refreshDomainInfo, queryRenewalPrice, batchQueryRenewalPrice,
   batchDeleteDomains, batchUpdateDomains,
   exportDomains, importDomainsCSV,
@@ -637,10 +637,74 @@ function compareDomain(name) {
   router.push({ path: '/price', query: { domain: name } })
 }
 
-function showDetail(row) {
-  detailDomain.value = { ...row }
-  detailTab.value = 'basic'
+const digitalPlatSuffixes = ['dpdns.org', 'us.kg', 'qzz.io', 'xx.kg', 'qd.je']
+
+function isDigitalPlatDomain(name) {
+  const n = String(name || '').trim().toLowerCase()
+  return digitalPlatSuffixes.some(s => n === s || n.endsWith('.' + s))
+}
+
+async function showDetail(row) {
   detailVisible.value = true
+  detailLoading.value = true
+  detailTab.value = 'basic'
+  detailDomain.value = { ...row }
+  try {
+    const fresh = await getDomain(row.id)
+    detailDomain.value = { ...fresh }
+  } catch (e) {
+    ElMessage.warning('获取最新详情失败，显示列表数据: ' + (e.message || '未知错误'))
+    detailDomain.value = { ...row }
+  } finally {
+    detailLoading.value = false
+  }
+  // DigitalPlat 域名优先使用官方 RDAP 服务器获取准确 WHOIS 数据（仅首次）
+  if (isDigitalPlatDomain(detailDomain.value?.name) && !detailDomain.value?.whois_updated_at) {
+    refreshDetailDomain()
+  }
+}
+
+const domainStatusMap = {
+  'active': { type: 'success', text: '正常' },
+  'ok': { type: 'success', text: '正常' },
+  'expired': { type: 'danger', text: '已过期' },
+  'inactive': { type: 'warning', text: '未激活' },
+  'pending': { type: 'warning', text: '处理中' },
+  'hold': { type: 'warning', text: '暂停' },
+  'clienthold': { type: 'warning', text: '注册商暂停' },
+  'serverhold': { type: 'warning', text: '注册局暂停' },
+  'redemptionperiod': { type: 'danger', text: '赎回期' },
+  'pendingdelete': { type: 'danger', text: '待删除' },
+  'pendingtransfer': { type: 'warning', text: '转移中' },
+  'pendingrenew': { type: 'warning', text: '待续费' },
+  'unknown': { type: 'info', text: '未知' },
+}
+
+function domainStatusInfo(d) {
+  if (!d) return { type: 'info', text: '-' }
+  const status = String(d.status || '').trim().toLowerCase()
+  if (domainStatusMap[status]) return domainStatusMap[status]
+
+  // 状态字段未知时，优先依据官方 RDAP/WHOIS 状态
+  const whoisStatus = String(d.whois_status || '').trim().toLowerCase()
+  if (whoisStatus) {
+    if (whoisStatus.includes('active') || whoisStatus.split(/[,;]/)[0].trim() === 'ok') return { type: 'success', text: '正常' }
+    if (whoisStatus.includes('expired') || whoisStatus.includes('redemption') || whoisStatus.includes('pendingdelete')) return { type: 'danger', text: '已过期' }
+    if (whoisStatus.includes('hold')) return { type: 'warning', text: '暂停' }
+    const first = whoisStatus.split(/[,;]/)[0].trim()
+    if (first) return { type: 'info', text: first }
+  }
+
+  // 其次依据到期时间判断
+  if (d.expiry_date) {
+    const exp = new Date(d.expiry_date)
+    if (!isNaN(exp.getTime())) {
+      return exp.getTime() < Date.now() ? { type: 'danger', text: '已过期' } : { type: 'success', text: '正常' }
+    }
+  }
+
+  if (status) return { type: 'info', text: status }
+  return { type: 'info', text: '未知' }
 }
 
 const whoisStatusMap = {
