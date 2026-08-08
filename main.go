@@ -36,7 +36,12 @@ func main() {
 			c.Status(http.StatusNotFound)
 			return
 		}
-		defer f.Close()
+		defer func(f fs.File) {
+			err := f.Close()
+			if err != nil {
+				log.Printf("failed to close file: %v", err)
+			}
+		}(f)
 		data, err := io.ReadAll(f)
 		if err != nil {
 			c.Status(http.StatusInternalServerError)
