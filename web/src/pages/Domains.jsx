@@ -1,24 +1,34 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Table, Input, Select, Button, Popover, Checkbox, Space, Tag, Switch,
-  Modal, Form, DatePicker, InputNumber, Drawer, Tabs, Descriptions, Upload,
-  Popconfirm, Empty,
+  Modal, Form, DatePicker, InputNumber, Tabs, Descriptions, Upload,
+  Popconfirm, Empty, Tooltip,
 } from 'antd'
 import {
   SearchOutlined, SettingOutlined, DownloadOutlined, UploadOutlined,
   PlusOutlined, MoneyCollectOutlined, CheckOutlined,
-  CloseOutlined, DeleteOutlined, ReloadOutlined, LinkOutlined,
+  CloseOutlined, DeleteOutlined, ReloadOutlined, LinkOutlined, EditOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import * as api from '../api/domain'
 import { notify } from '../utils/toast'
-import {
-  fmtDate, fmtUpdated, calcDays, daysColor, daysLabel, domainStatusInfo,
-} from '../utils/format'
+import { useIsMobile } from '../utils/useIsMobile'
+import { downloadBlob } from '../utils/download'
+import { useContainerWidth } from '../utils/useContainerWidth'
+import { fmtDate, fmtUpdated, calcDays, daysColor, daysLabel } from '../utils/format'
+import PageHead from '../components/PageHead'
+import StatusTag from '../components/StatusTag'
 
-const STATUS_TAG = { success: 'success', error: 'error', warning: 'warning', default: 'default' }
 const FALLBACK_SUFFIXES = ['dpdns.org', 'us.kg', 'qzz.io', 'xx.kg', 'qd.je']
+
+// Single source of truth for column widths (keep in sync with the builder below).
+const COL_WIDTHS = {
+  days: 80, cert: 70, expiry: 115, group: 90, tags: 130, note: 120,
+  org: 140, icp: 130, updateIcp: 80, updatedAt: 130, autoUpdate: 84,
+  expiryReminder: 84, price: 110,
+}
+const ACTIONS_WIDTH = { desktop: 200, mobile: 148 }
 
 const COLUMN_DEFS = [
   { key: 'name', label: '域名', default: true },
@@ -51,6 +61,14 @@ function loadColumnPrefs() {
 
 export default function Domains() {
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
+  const [tableWrapRef, wrapWidth] = useContainerWidth()
+  // The domain column adapts to the available space; narrower on mobile.
+  const domainWidth = isMobile
+    ? Math.max(110, Math.min(170, Math.round((wrapWidth || 360) * 0.32)))
+    : Math.max(170, Math.min(480, Math.round((wrapWidth || 1200) * 0.26)))
+  const actionsWidth = isMobile ? ACTIONS_WIDTH.mobile : ACTIONS_WIDTH.desktop
+
   const [loading, setLoading] = useState(false)
   const [domains, setDomains] = useState([])
   const [total, setTotal] = useState(0)
@@ -63,7 +81,7 @@ export default function Domains() {
   const [batchLoading, setBatchLoading] = useState(false)
   const [visible, setVisible] = useState(() => loadColumnPrefs())
 
-  // detail drawer
+  // detail modal
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailTab, setDetailTab] = useState('basic')
@@ -214,7 +232,7 @@ export default function Domains() {
     }
   }
 
-  // ---- detail drawer ----
+  // ---- detail modal ----
   const openDetail = async (row) => {
     setDetail({ ...row })
     setDetailTab('basic')
@@ -248,12 +266,7 @@ export default function Domains() {
   const handleExport = async () => {
     try {
       const blob = await api.exportDomains()
-      const url = URL.createObjectURL(new Blob([blob], { type: 'text/csv;charset=utf-8' }))
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'domains_export.csv'
-      a.click()
-      URL.revokeObjectURL(url)
+      downloadBlob(blob, 'domains_export.csv')
       notify('success', '导出成功')
     } catch {
       /* interceptor */
@@ -351,6 +364,32 @@ export default function Domains() {
 
   const col = (key, fallback = true) => (visible[key] !== undefined ? visible[key] : fallback)
 
+  // Sum of the columns that are actually rendered, so the table's scroll area
+  // hugs the content (no trailing gap from a hard-coded x, and the panel never
+  // overflows the viewport).
+  const visibleColumnSum = useMemo(() => {
+    let s = 0
+    if (col('name')) s += domainWidth
+    if (col('days')) s += COL_WIDTHS.days
+    if (col('expiry')) s += COL_WIDTHS.expiry
+    if (col('icp')) s += COL_WIDTHS.icp
+    if (col('price')) s += COL_WIDTHS.price
+    if (!isMobile) {
+      if (col('cert')) s += COL_WIDTHS.cert
+      if (col('group')) s += COL_WIDTHS.group
+      if (col('tags')) s += COL_WIDTHS.tags
+      if (col('note')) s += COL_WIDTHS.note
+      if (col('org')) s += COL_WIDTHS.org
+      if (col('update_icp')) s += COL_WIDTHS.updateIcp
+      if (col('updated_at')) s += COL_WIDTHS.updatedAt
+      if (col('auto_update')) s += COL_WIDTHS.autoUpdate
+      if (col('expiry_reminder')) s += COL_WIDTHS.expiryReminder
+    }
+    s += actionsWidth
+    return s
+  }, [visible, domainWidth, isMobile, actionsWidth])
+  const tableScrollX = Math.max(wrapWidth || 1200, visibleColumnSum)
+
   const columns = useMemo(() => {
     const cols = []
     if (col('name')) {
@@ -359,7 +398,9 @@ export default function Domains() {
         dataIndex: 'name',
         key: 'name',
         fixed: 'left',
-        width: 190,
+        width: domainWidth,
+        className: 'tbl-first',
+        ellipsis: true,
         sorter: true,
         render: (v, r) => <span className="domain-link" onClick={() => openDetail(r)}>{v}</span>,
       })
@@ -369,7 +410,7 @@ export default function Domains() {
         title: '剩余',
         dataIndex: 'expiry_date',
         key: 'expiry_date',
-        width: 80,
+        width: COL_WIDTHS.days,
         sorter: true,
         render: (v) => {
           const days = calcDays(v)
@@ -378,14 +419,14 @@ export default function Domains() {
       })
     }
     if (col('cert')) {
-      cols.push({ title: '证书', dataIndex: 'cert_count', key: 'cert_count', width: 70, align: 'center', render: (v) => v || 0 })
+      cols.push({ title: '证书', dataIndex: 'cert_count', key: 'cert_count', width: COL_WIDTHS.cert, align: 'center', responsive: ['md'], render: (v) => v || 0 })
     }
     if (col('expiry')) {
       cols.push({
         title: '到期时间',
         dataIndex: 'expiry_date',
         key: 'expiry_date2',
-        width: 115,
+        width: COL_WIDTHS.expiry,
         render: (v) => (v ? <span style={{ color: daysColor(calcDays(v)) }}>{fmtDate(v)}</span> : <span className="faint">-</span>),
       })
     }
@@ -394,8 +435,9 @@ export default function Domains() {
         title: '分组',
         dataIndex: 'group',
         key: 'group',
-        width: 90,
+        width: COL_WIDTHS.group,
         render: (v) => (v ? <Tag style={{ borderRadius: 4 }}>{v}</Tag> : <span className="faint">-</span>),
+        responsive: ['md'],
       })
     }
     if (col('tags')) {
@@ -403,7 +445,7 @@ export default function Domains() {
         title: '标签',
         dataIndex: 'tags',
         key: 'tags',
-        width: 130,
+        width: COL_WIDTHS.tags,
         render: (v) =>
           v ? (
             <div className="tag-list">
@@ -417,17 +459,17 @@ export default function Domains() {
       })
     }
     if (col('note')) {
-      cols.push({ title: '备注', dataIndex: 'note', key: 'note', width: 120, ellipsis: true, render: (v) => v || <span className="faint">-</span> })
+      cols.push({ title: '备注', dataIndex: 'note', key: 'note', width: COL_WIDTHS.note, ellipsis: true, responsive: ['md'], render: (v) => v || <span className="faint">-</span> })
     }
     if (col('org')) {
-      cols.push({ title: '主办单位', dataIndex: 'registrant_org', key: 'org', width: 140, ellipsis: true, render: (v) => v || <span className="faint">-</span> })
+      cols.push({ title: '主办单位', dataIndex: 'registrant_org', key: 'org', width: COL_WIDTHS.org, ellipsis: true, responsive: ['md'], render: (v) => v || <span className="faint">-</span> })
     }
     if (col('icp')) {
       cols.push({
         title: 'ICP备案',
         dataIndex: 'icp_number',
         key: 'icp',
-        width: 130,
+        width: COL_WIDTHS.icp,
         render: (v, r) => {
           if (v) return <span style={{ color: '#16a34a' }}>{v}</span>
           if (r.icp_status === 'failed') return <span style={{ color: '#dc2626' }}>无法备案</span>
@@ -441,21 +483,23 @@ export default function Domains() {
         title: '更新ICP',
         dataIndex: 'update_icp',
         key: 'update_icp',
-        width: 80,
+        width: COL_WIDTHS.updateIcp,
         align: 'center',
+        responsive: ['md'],
         render: (v, r) => <Switch size="small" checked={!!v} onChange={() => toggleField(r, 'update_icp')} />,
       })
     }
     if (col('updated_at')) {
-      cols.push({ title: '更新时间', dataIndex: 'whois_updated_at', key: 'updated_at', width: 130, render: fmtUpdated })
+      cols.push({ title: '更新时间', dataIndex: 'whois_updated_at', key: 'updated_at', width: COL_WIDTHS.updatedAt, responsive: ['md'], render: fmtUpdated })
     }
     if (col('auto_update')) {
       cols.push({
         title: '自动更新',
         dataIndex: 'auto_update',
         key: 'auto_update',
-        width: 84,
+        width: COL_WIDTHS.autoUpdate,
         align: 'center',
+        responsive: ['md'],
         render: (v, r) => <Switch size="small" checked={!!v} onChange={() => toggleField(r, 'auto_update')} />,
       })
     }
@@ -464,8 +508,9 @@ export default function Domains() {
         title: '到期提醒',
         dataIndex: 'expiry_reminder',
         key: 'expiry_reminder',
-        width: 84,
+        width: COL_WIDTHS.expiryReminder,
         align: 'center',
+        responsive: ['md'],
         render: (v, r) => <Switch size="small" checked={!!v} onChange={() => toggleField(r, 'expiry_reminder')} />,
       })
     }
@@ -474,7 +519,7 @@ export default function Domains() {
         title: '续费价',
         dataIndex: 'renewal_price',
         key: 'renewal_price',
-        width: 110,
+        width: COL_WIDTHS.price,
         sorter: true,
         align: 'right',
         render: (v, r) =>
@@ -493,21 +538,29 @@ export default function Domains() {
       title: '操作',
       key: 'actions',
       fixed: 'right',
-      width: 200,
+      width: actionsWidth,
       render: (_, r) => (
-        <Space size={0}>
-          <Button type="text" size="small" icon={<ReloadOutlined />} onClick={() => handleRefresh(r)}>刷新</Button>
-          <Button type="text" size="small" onClick={() => openDialog(r)}>编辑</Button>
-          <Button type="text" size="small" icon={<LinkOutlined />} onClick={() => navigate(`/price?domain=${encodeURIComponent(r.name)}`)}>比价</Button>
+        <Space size={isMobile ? 2 : 0}>
+          <Tooltip title="刷新">
+            <Button type="text" size="small" icon={<ReloadOutlined />} onClick={() => handleRefresh(r)}>{!isMobile && '刷新'}</Button>
+          </Tooltip>
+          <Tooltip title="编辑">
+            <Button type="text" size="small" icon={<EditOutlined />} onClick={() => openDialog(r)}>{!isMobile && '编辑'}</Button>
+          </Tooltip>
+          <Tooltip title="比价">
+            <Button type="text" size="small" icon={<LinkOutlined />} onClick={() => navigate(`/price?domain=${encodeURIComponent(r.name)}`)}>{!isMobile && '比价'}</Button>
+          </Tooltip>
           <Popconfirm title="确定删除此域名？" onConfirm={() => handleDelete(r.id)}>
-            <Button type="text" size="small" danger icon={<DeleteOutlined />}>删除</Button>
+            <Tooltip title="删除">
+              <Button type="text" size="small" danger icon={<DeleteOutlined />}>{!isMobile && '删除'}</Button>
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
     })
     return cols
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, domains, suffixes, navigate])
+  }, [visible, domains, suffixes, navigate, domainWidth, isMobile])
 
   const columnSettings = (
     <div style={{ width: 190 }}>
@@ -526,12 +579,10 @@ export default function Domains() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">域名管理</h1>
-          <p className="page-sub">共 {total} 个域名 · 支持 WHOIS / ICP 刷新与批量操作</p>
-        </div>
-        <div className="page-actions">
+      <PageHead
+        title="域名管理"
+        sub={`共 ${total} 个域名 · 支持 WHOIS / ICP 刷新与批量操作`}
+        actions={<>
           <Input
             allowClear
             prefix={<SearchOutlined style={{ color: '#a8a29e' }} />}
@@ -563,11 +614,11 @@ export default function Domains() {
             <Button icon={<UploadOutlined />}>导入</Button>
           </Upload>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => openDialog(null)}>添加域名</Button>
-        </div>
-      </div>
+        </>}
+      />
 
       {selectedRowKeys.length > 0 && (
-        <div className="panel mb-16" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#fefce8', borderColor: '#fde68a' }}>
+        <div className="panel mb-16 batch-bar" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#fefce8', borderColor: '#fde68a' }}>
           <span style={{ fontWeight: 600, fontSize: 13, marginRight: 8 }}>已选 {selectedRowKeys.length} 个域名</span>
           <Button size="small" loading={batchLoading} icon={<ReloadOutlined />} onClick={handleBatchRefresh}>批量刷新</Button>
           <Button size="small" loading={batchLoading} icon={<MoneyCollectOutlined />} onClick={handleBatchPrice}>批量查价</Button>
@@ -581,14 +632,14 @@ export default function Domains() {
         </div>
       )}
 
-      <div className="panel">
+      <div className="panel" ref={tableWrapRef}>
         <Table
           rowKey="id"
           columns={columns}
           dataSource={domains}
           loading={loading}
           size="middle"
-          scroll={{ x: 1400 }}
+          scroll={{ x: tableScrollX }}
           rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
           onChange={onTableChange}
           pagination={{
@@ -645,12 +696,15 @@ export default function Domains() {
         </Form>
       </Modal>
 
-      {/* Detail drawer */}
-      <Drawer
+      {/* Detail modal */}
+      <Modal
         title={detail ? `${detail.name} — 详细信息` : ''}
         open={!!detail}
-        onClose={() => setDetail(null)}
-        width={720}
+        onCancel={() => setDetail(null)}
+        footer={null}
+        width={isMobile ? '100%' : 920}
+        destroyOnClose
+        styles={{ body: { maxHeight: '72vh', overflowY: 'auto' } }}
       >
         {detail && (
           <>
@@ -664,10 +718,10 @@ export default function Domains() {
                 key: 'basic',
                 label: '基本信息',
                 children: (
-                  <Descriptions column={2} bordered size="small">
+                  <Descriptions column={isMobile ? 1 : 2} bordered size="small">
                     <Descriptions.Item label="域名">{detail.name}</Descriptions.Item>
                     <Descriptions.Item label="注册商">{detail.registrar || '-'}</Descriptions.Item>
-                    <Descriptions.Item label="状态"><Tag color={STATUS_TAG[domainStatusInfo(detail).color]}>{domainStatusInfo(detail).text}</Tag></Descriptions.Item>
+                    <Descriptions.Item label="状态"><StatusTag data={detail} /></Descriptions.Item>
                     <Descriptions.Item label="到期时间">{fmtDate(detail.expiry_date)}</Descriptions.Item>
                     <Descriptions.Item label="注册时间">{fmtDate(detail.registration_date)}</Descriptions.Item>
                     <Descriptions.Item label="创建时间">{fmtDate(detail.creation_date)}</Descriptions.Item>
@@ -694,7 +748,7 @@ export default function Domains() {
                 key: 'whois',
                 label: 'WHOIS',
                 children: detail.whois_updated_at || detail.whois_raw ? (
-                  <Descriptions column={2} bordered size="small">
+                  <Descriptions column={isMobile ? 1 : 2} bordered size="small">
                     <Descriptions.Item label="注册人">{detail.registrant_name || '-'}</Descriptions.Item>
                     <Descriptions.Item label="组织">{detail.registrant_org || '-'}</Descriptions.Item>
                     <Descriptions.Item label="邮箱">{detail.registrant_email || '-'}</Descriptions.Item>
@@ -714,7 +768,7 @@ export default function Domains() {
                 key: 'icp',
                 label: 'ICP 备案',
                 children: (
-                  <Descriptions column={2} bordered size="small">
+                  <Descriptions column={isMobile ? 1 : 2} bordered size="small">
                     <Descriptions.Item label="备案号">{detail.icp_number || '-'}</Descriptions.Item>
                     <Descriptions.Item label="状态">
                       {detail.icp_status === 'registered' ? <Tag color="success">已备案</Tag>
@@ -738,7 +792,7 @@ export default function Domains() {
             ]} />
           </>
         )}
-      </Drawer>
+      </Modal>
     </div>
   )
 }

@@ -247,7 +247,6 @@ func GetRegistrarTypes(c *gin.Context) {
 		{"value": "porkbun", "label": "Porkbun", "region": "global"},
 		{"value": "dynadot", "label": "Dynadot", "region": "global"},
 		{"value": "digitalplat", "label": "DigitalPlat（免费域名）", "region": "global"},
-		{"value": "google", "label": "Google Domains", "region": "global"},
 		{"value": "amazon", "label": "AWS Route53", "region": "global"},
 		{"value": "other", "label": "其他（手动导入）", "region": "other"},
 	}

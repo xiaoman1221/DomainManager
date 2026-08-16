@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Table, Input, Button, Tag, Alert } from 'antd'
+import { Table, Input, Button, Tag, Alert, Empty } from 'antd'
 import { SearchOutlined, ExportOutlined } from '@ant-design/icons'
 import { useSearchParams } from 'react-router-dom'
 import { comparePrices, getSupportedTLDs } from '../api/price'
 import { notify } from '../utils/toast'
+import PageHead from '../components/PageHead'
+import Panel from '../components/Panel'
 
 function fmt(v, cur) {
   return `${cur === 'CNY' ? '¥' : '$'}${Number(v).toFixed(2)}`
@@ -62,6 +64,7 @@ export default function Price() {
       dataIndex: 'registrar',
       key: 'registrar',
       width: 200,
+      className: 'tbl-first',
       render: (v, r) => (
         <span>
           <span style={{ fontWeight: 500 }}>{v}</span>
@@ -91,15 +94,10 @@ export default function Price() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">域名比价</h1>
-          <p className="page-sub">对比各注册商的注册 / 续费 / 转入价格</p>
-        </div>
-      </div>
+      <PageHead title="域名比价" sub="对比各注册商的注册 / 续费 / 转入价格" />
 
       <div className="panel mb-16">
-        <div className="panel-body" style={{ display: 'flex', gap: 12 }}>
+        <div className="panel-body price-toolbar">
           <Input
             size="large"
             placeholder="请输入域名，如 example.com"
@@ -115,22 +113,14 @@ export default function Price() {
       </div>
 
       {prices.length > 0 && (
-        <Alert
-          type="warning"
-          showIcon
-          closable={false}
-          style={{ marginBottom: 16, border: '1px solid #fde68a', background: '#fffbeb' }}
-          message="当前价格为估算参考价（非实时注册商报价），仅用于比价参考。"
-        />
+        <Alert type="warning" showIcon closable={false} style={{ marginBottom: 16 }} message="当前价格为估算参考价（非实时注册商报价），仅用于比价参考。" />
       )}
 
       <div className="panel">
-        <Table rowKey={(r) => `${r.registrar}-${r.tld}`} columns={columns} dataSource={prices} loading={loading} pagination={false} size="middle" locale={{ emptyText: '请输入域名进行比价' }} />
+        <Table rowKey={(r) => `${r.registrar}-${r.tld}`} columns={columns} dataSource={prices} loading={loading} pagination={false} size="middle" scroll={{ x: 720 }} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请输入域名进行比价" /> }} />
       </div>
 
-      <div className="panel mt-16">
-        <div className="panel-head"><h3 className="panel-title">支持的域名后缀</h3></div>
-        <div className="panel-body">
+      <Panel className="mt-16" title="支持的域名后缀" body>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {tlds.map((t) => (
               <Tag
@@ -146,8 +136,7 @@ export default function Price() {
               </Tag>
             ))}
           </div>
-        </div>
-      </div>
+      </Panel>
     </div>
   )
 }

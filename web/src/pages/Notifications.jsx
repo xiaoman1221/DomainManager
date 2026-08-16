@@ -3,6 +3,7 @@ import { Table, Tabs, Button, Modal, Form, Input, Select, Switch, Tag, Popconfir
 import { PlusOutlined, BellOutlined, DeleteOutlined } from '@ant-design/icons'
 import * as api from '../api/notification'
 import { notify } from '../utils/toast'
+import PageHead from '../components/PageHead'
 import { fmtDateTime } from '../utils/format'
 
 const TYPE_META = {
@@ -114,7 +115,7 @@ export default function Notifications() {
         notify('success', '创建成功')
       }
       setDialogOpen(false)
-      fetchChannels()
+      await fetchChannels()
     } catch {
       /* interceptor */
     } finally {
@@ -125,7 +126,7 @@ export default function Notifications() {
   const handleDelete = async (id) => {
     await api.deleteNotificationChannel(id)
     notify('success', '渠道已删除')
-    fetchChannels()
+    await fetchChannels()
   }
 
   const handleToggle = async (row) => {
@@ -152,7 +153,7 @@ export default function Notifications() {
       await api.testNotificationChannel(testChannel.id, values)
       notify('success', '测试发送成功')
       setTestOpen(false)
-      fetchLogs()
+      await fetchLogs()
     } catch {
       /* interceptor */
     } finally {
@@ -165,7 +166,7 @@ export default function Notifications() {
     try {
       const res = await api.sendExpiryNotifications()
       notify('success', `到期提醒已发送，成功 ${res.sent || 0} 个渠道`)
-      fetchLogs()
+      await fetchLogs()
     } catch {
       /* interceptor */
     } finally {
@@ -176,10 +177,10 @@ export default function Notifications() {
   const getChannelName = (id) => channels.find((c) => c.id === id)?.name || '未知'
 
   const channelColumns = [
-    { title: '名称', dataIndex: 'name', key: 'name', width: 180, render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
+    { title: '名称', dataIndex: 'name', key: 'name', width: 180, className: 'tbl-first', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
     { title: '类型', dataIndex: 'type', key: 'type', width: 130, render: (v) => <Tag color={TYPE_META[v]?.color || 'default'} style={{ borderRadius: 4 }}>{TYPE_META[v]?.label || v}</Tag> },
     { title: '状态', dataIndex: 'enabled', key: 'enabled', width: 90, align: 'center', render: (v, r) => <Switch size="small" checked={!!v} onChange={() => handleToggle(r)} /> },
-    { title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 170, render: fmtDateTime },
+    { title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 170, responsive: ['md'], render: fmtDateTime },
     {
       title: '操作',
       key: 'actions',
@@ -197,11 +198,11 @@ export default function Notifications() {
   ]
 
   const logColumns = [
-    { title: '渠道', dataIndex: 'channel_id', key: 'channel_id', width: 140, render: getChannelName },
+    { title: '渠道', dataIndex: 'channel_id', key: 'channel_id', width: 140, className: 'tbl-first', render: getChannelName },
     { title: '标题', dataIndex: 'title', key: 'title', minWidth: 160, ellipsis: true },
-    { title: '内容', dataIndex: 'content', key: 'content', minWidth: 240, ellipsis: true },
+    { title: '内容', dataIndex: 'content', key: 'content', minWidth: 240, ellipsis: true, responsive: ['md'] },
     { title: '状态', dataIndex: 'status', key: 'status', width: 90, render: (v) => <Tag color={v === 'success' ? 'success' : 'error'} style={{ borderRadius: 4 }}>{v === 'success' ? '成功' : '失败'}</Tag> },
-    { title: '错误信息', dataIndex: 'error', key: 'error', width: 200, ellipsis: true, render: (v) => v || '-' },
+    { title: '错误信息', dataIndex: 'error', key: 'error', width: 200, ellipsis: true, responsive: ['md'], render: (v) => v || '-' },
     { title: '时间', dataIndex: 'created_at', key: 'created_at', width: 170, render: fmtDateTime },
   ]
 
@@ -209,18 +210,16 @@ export default function Notifications() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">通知管理</h1>
-          <p className="page-sub">配置推送渠道并查看发送记录</p>
-        </div>
-        <div className="page-actions">
+      <PageHead
+        title="通知管理"
+        sub="配置推送渠道并查看发送记录"
+        actions={<>
           <Button icon={<BellOutlined />} loading={sendingExpiry} onClick={handleSendExpiry}>发送到期提醒</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => openDialog(null)}>添加通知渠道</Button>
-        </div>
-      </div>
+        </>}
+      />
 
-      <div className="panel">
+      <div className="panel notifications-panel">
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}

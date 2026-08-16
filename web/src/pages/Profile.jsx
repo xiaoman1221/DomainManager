@@ -6,12 +6,15 @@ import { useAuth } from '../context/AuthContext'
 import AppAvatar from '../components/AppAvatar'
 import * as api from '../api/settings'
 import { notify } from '../utils/toast'
+import PageHead from '../components/PageHead'
 import { fmtDateTime } from '../utils/format'
+import { useIsMobile } from '../utils/useIsMobile'
 
 export default function Profile() {
   const { user, logout, fetchProfile } = useAuth()
   const navigate = useNavigate()
   const isAdmin = user?.role === 'admin'
+  const isMobile = useIsMobile()
 
   const [profileForm] = Form.useForm()
   const [pwdForm] = Form.useForm()
@@ -110,10 +113,10 @@ export default function Profile() {
   }
 
   const userColumns = [
-    { title: 'ID', dataIndex: 'id', key: 'id', width: 60 },
-    { title: '用户名', dataIndex: 'username', key: 'username', width: 140, render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
-    { title: '邮箱', dataIndex: 'email', key: 'email', width: 220 },
-    { title: '昵称', dataIndex: 'nickname', key: 'nickname', width: 120, render: (v) => v || '-' },
+    { title: 'ID', dataIndex: 'id', key: 'id', width: 60, responsive: ['md'] },
+    { title: '用户名', dataIndex: 'username', key: 'username', width: 140, className: 'tbl-first', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
+    { title: '邮箱', dataIndex: 'email', key: 'email', width: 220, responsive: ['md'] },
+    { title: '昵称', dataIndex: 'nickname', key: 'nickname', width: 120, responsive: ['md'], render: (v) => v || '-' },
     {
       title: '角色',
       dataIndex: 'role',
@@ -130,7 +133,7 @@ export default function Profile() {
         />
       ),
     },
-    { title: '注册时间', dataIndex: 'created_at', key: 'created_at', width: 170, render: fmtDateTime },
+    { title: '注册时间', dataIndex: 'created_at', key: 'created_at', width: 170, responsive: ['md'], render: fmtDateTime },
     {
       title: '操作',
       key: 'actions',
@@ -145,12 +148,7 @@ export default function Profile() {
 
   return (
     <div className="page" style={{ maxWidth: 1000 }}>
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">个人设置</h1>
-          <p className="page-sub">头像支持 QQ 邮箱自动识别与 Gravatar</p>
-        </div>
-      </div>
+      <PageHead title="个人设置" sub="头像支持 QQ 邮箱自动识别与 Gravatar" />
 
       <div className="panel mb-16">
         <div style={{ display: 'flex', gap: 24, padding: 24 }}>
@@ -166,7 +164,7 @@ export default function Profile() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="two-col">
         <div className="panel">
           <div className="panel-head"><h3 className="panel-title">基本资料</h3></div>
           <div className="panel-body">
@@ -227,7 +225,7 @@ export default function Profile() {
 
             <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>系统信息</h4>
             {sysInfo ? (
-              <Descriptions column={3} size="small" bordered>
+              <Descriptions column={isMobile ? 1 : 3} size="small" bordered>
                 <Descriptions.Item label="域名总数">{sysInfo.domains}</Descriptions.Item>
                 <Descriptions.Item label="证书总数">{sysInfo.certificates}</Descriptions.Item>
                 <Descriptions.Item label="注册商数量">{sysInfo.registrars}</Descriptions.Item>

@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Table, Button, Modal, Form, Input, Select, Tag, Drawer, Descriptions, Popconfirm, Empty, Statistic, Row, Col, Alert } from 'antd'
+import { Table, Button, Modal, Form, Input, Select, Tag, Descriptions, Popconfirm, Empty, Statistic, Alert } from 'antd'
 import { PlusOutlined, SettingOutlined, SyncOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons'
 import * as api from '../api/certificate'
 import { useAuth } from '../context/AuthContext'
 import { notify } from '../utils/toast'
+import PageHead from '../components/PageHead'
 import { fmtDate, fmtDateTime, calcDays } from '../utils/format'
+import { useIsMobile } from '../utils/useIsMobile'
 
 export default function Certificates() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const isMobile = useIsMobile()
 
   const [certs, setCerts] = useState([])
   const [stats, setStats] = useState(null)
@@ -145,13 +148,13 @@ export default function Certificates() {
   }
 
   const columns = [
-    { title: '域名', dataIndex: 'domain', key: 'domain', width: 210, render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
-    { title: '颁发者', dataIndex: 'issuer', key: 'issuer', width: 160, render: (v) => v || <span className="faint">-</span> },
-    { title: '密钥算法', dataIndex: 'key_algorithm', key: 'key_algorithm', width: 110, render: (v) => <Tag style={{ borderRadius: 4 }}>{v || '-'}</Tag> },
-    { title: '生效时间', dataIndex: 'not_before', key: 'not_before', width: 115, render: fmtDate },
+    { title: '域名', dataIndex: 'domain', key: 'domain', width: 210, className: 'tbl-first', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
+    { title: '颁发者', dataIndex: 'issuer', key: 'issuer', width: 160, responsive: ['md'], render: (v) => v || <span className="faint">-</span> },
+    { title: '密钥算法', dataIndex: 'key_algorithm', key: 'key_algorithm', width: 110, responsive: ['md'], render: (v) => <Tag style={{ borderRadius: 4 }}>{v || '-'}</Tag> },
+    { title: '生效时间', dataIndex: 'not_before', key: 'not_before', width: 115, responsive: ['md'], render: fmtDate },
     { title: '到期时间', dataIndex: 'not_after', key: 'not_after', width: 115, render: (v, r) => <span style={expiryClass(r)}>{fmtDate(v)}</span> },
     { title: '状态', dataIndex: 'status', key: 'status', width: 90, render: (v) => <Tag color={v === 'active' ? 'success' : 'error'} style={{ borderRadius: 4 }}>{v === 'active' ? '正常' : '已过期'}</Tag> },
-    { title: '来源', dataIndex: 'source', key: 'source', width: 100, render: (v) => <Tag color={v === 'certimate' ? 'blue' : 'default'} style={{ borderRadius: 4 }}>{v === 'certimate' ? 'Certimate' : v || '手动'}</Tag> },
+    { title: '来源', dataIndex: 'source', key: 'source', width: 100, responsive: ['md'], render: (v) => <Tag color={v === 'certimate' ? 'blue' : 'default'} style={{ borderRadius: 4 }}>{v === 'certimate' ? 'Certimate' : v || '手动'}</Tag> },
     {
       title: '操作',
       key: 'actions',
@@ -171,12 +174,10 @@ export default function Certificates() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1 className="page-title">证书管理</h1>
-          <p className="page-sub">跟踪 SSL 证书生命周期，支持与 Certimate 同步</p>
-        </div>
-        <div className="page-actions">
+      <PageHead
+        title="证书管理"
+        sub="跟踪 SSL 证书生命周期，支持与 Certimate 同步"
+        actions={<>
           <Input.Search allowClear placeholder="搜索域名或颁发者" style={{ width: 240 }} value={kwInput} onChange={(e) => setKwInput(e.target.value)} onSearch={(v) => setKeyword(v)} />
           <Select
             allowClear placeholder="状态筛选" style={{ width: 140 }} value={statusFilter || undefined}
@@ -194,12 +195,12 @@ export default function Certificates() {
             </>
           )}
           <Button type="primary" icon={<PlusOutlined />} onClick={() => openDialog(null)}>添加证书</Button>
-        </div>
-      </div>
+        </>}
+      />
 
       {stats && (
         <div className="panel mb-16">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          <div className="stats-grid-4">
             <div style={{ padding: '18px 24px', borderRight: '1px solid var(--border)' }}><Statistic title="证书总数" value={stats.total} /></div>
             <div style={{ padding: '18px 24px', borderRight: '1px solid var(--border)' }}><Statistic title="正常" value={stats.active} valueStyle={{ color: '#16a34a' }} /></div>
             <div style={{ padding: '18px 24px', borderRight: '1px solid var(--border)' }}><Statistic title="已过期" value={stats.expired} valueStyle={{ color: '#dc2626' }} /></div>
@@ -235,9 +236,16 @@ export default function Certificates() {
         </Form>
       </Modal>
 
-      <Drawer title={detail ? `${detail.domain} — 证书详情` : ''} open={!!detail} onClose={() => setDetail(null)} width={560}>
+      <Modal
+        title={detail ? `${detail.domain} — 证书详情` : ''}
+        open={!!detail}
+        onCancel={() => setDetail(null)}
+        footer={null}
+        width={isMobile ? '100%' : 560}
+        destroyOnClose
+      >
         {detail && (
-          <Descriptions column={1} bordered size="small">
+          <Descriptions column={isMobile ? 1 : 2} bordered size="small">
             <Descriptions.Item label="域名">{detail.domain}</Descriptions.Item>
             <Descriptions.Item label="颁发者">{detail.issuer || '-'}</Descriptions.Item>
             <Descriptions.Item label="序列号">{detail.serial_number || '-'}</Descriptions.Item>
@@ -251,7 +259,7 @@ export default function Certificates() {
             <Descriptions.Item label="备注">{detail.note || '-'}</Descriptions.Item>
           </Descriptions>
         )}
-      </Drawer>
+      </Modal>
 
       <Modal title="Certimate 配置" open={configOpen} onOk={handleSaveConfig} onCancel={() => setConfigOpen(false)} confirmLoading={savingConfig} width={480} destroyOnClose>
         <Alert type="info" showIcon style={{ marginBottom: 16 }} message="Certimate 使用 PocketBase 兼容 API，Token 为 superuser token。" />

@@ -14,7 +14,7 @@ export default function AppAvatar({ email, name, size = 32 }) {
         setFailed(true)
         return true
       }}
-      style={{ background: '#18181b', color: '#ffffff', fontWeight: 600, flexShrink: 0 }}
+      style={{ background: '#e7e5e4', color: '#1c1917', fontWeight: 600, flexShrink: 0 }}
     >
       {initial}
     </Avatar>

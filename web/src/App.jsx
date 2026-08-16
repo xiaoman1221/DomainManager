@@ -4,7 +4,7 @@ import MainLayout from './layouts/MainLayout'
 import { useAuth } from './context/AuthContext'
 
 const Login = lazy(() => import('./pages/Login'))
-const Register = lazy(() => import('./pages/Register'))
+
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Domains = lazy(() => import('./pages/Domains'))
 const Price = lazy(() => import('./pages/Price'))
@@ -33,7 +33,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<GuestOnly><Page><Login /></Page></GuestOnly>} />
-      <Route path="/register" element={<GuestOnly><Page><Register /></Page></GuestOnly>} />
+      <Route path="/register" element={<GuestOnly><Page><Login /></Page></GuestOnly>} />
       <Route path="/" element={<RequireAuth><MainLayout /></RequireAuth>}>
         <Route index element={<Page><Dashboard /></Page>} />
         <Route path="domains" element={<Page><Domains /></Page>} />

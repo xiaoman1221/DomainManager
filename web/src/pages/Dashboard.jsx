@@ -1,18 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Table, Tag, Empty } from 'antd'
-import { PlusOutlined, DollarOutlined, RightOutlined, WarningOutlined } from '@ant-design/icons'
+import { Table, Empty } from 'antd'
+import { PlusOutlined, DollarOutlined, RightOutlined, WarningOutlined, BankOutlined } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { getDomainStats, getDomains } from '../api/domain'
 import { useAuth } from '../context/AuthContext'
-import { fmtDate, calcDays, daysColor, daysLabel, domainStatusInfo } from '../utils/format'
-
-const STATUS_TAG_COLOR = {
-  success: 'success',
-  error: 'error',
-  warning: 'warning',
-  default: 'default',
-}
+import { fmtDate, calcDays, daysColor, daysLabel } from '../utils/format'
+import StatusTag from '../components/StatusTag'
+import Panel from '../components/Panel'
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -45,8 +40,8 @@ export default function Dashboard() {
   const today = dayjs().format('YYYY年M月D日 dddd')
 
   const columns = [
-    { title: '域名', dataIndex: 'name', key: 'name', render: (v, r) => <span className="domain-link" onClick={() => navigate('/domains')}>{v}</span> },
-    { title: '注册商', dataIndex: 'registrar', key: 'registrar', render: (v) => v || <span className="faint">-</span>, width: 130 },
+    { title: '域名', dataIndex: 'name', key: 'name', className: 'tbl-first', render: (v, r) => <span className="domain-link" onClick={() => navigate('/domains')}>{v}</span> },
+    { title: '注册商', dataIndex: 'registrar', key: 'registrar', render: (v) => v || <span className="faint">-</span>, width: 130, responsive: ['md'] },
     {
       title: '到期时间',
       dataIndex: 'expiry_date',
@@ -68,10 +63,7 @@ export default function Dashboard() {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (_, r) => {
-        const s = domainStatusInfo(r)
-        return <Tag color={STATUS_TAG_COLOR[s.color]} style={{ borderRadius: 4, fontSize: 12 }}>{s.text}</Tag>
-      },
+      render: (_, r) => <StatusTag data={r} />,
       width: 90,
     },
   ]
@@ -99,12 +91,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr', gap: 20 }}>
-        <div className="panel">
-          <div className="panel-head">
-            <h3 className="panel-title">最近添加的域名</h3>
-            <Link to="/domains" style={{ fontSize: 13, color: '#57534e' }}>查看全部 <RightOutlined style={{ fontSize: 10 }} /></Link>
-          </div>
+      <div className="dash-grid">
+        <Panel
+          title="最近添加的域名"
+          extra={<Link to="/domains" style={{ fontSize: 13, color: '#57534e' }}>查看全部 <RightOutlined style={{ fontSize: 10 }} /></Link>}
+        >
           <Table
             rowKey="id"
             columns={columns}
@@ -114,11 +105,10 @@ export default function Dashboard() {
             locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无域名" /> }}
             scroll={{ x: 560 }}
           />
-        </div>
+        </Panel>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div className="panel">
-            <div className="panel-head"><h3 className="panel-title">快捷操作</h3></div>
+          <Panel title="快捷操作">
             <div className="panel-body" style={{ paddingTop: 8, paddingBottom: 8 }}>
               <Link to="/domains" className="quick-action">
                 <span>
@@ -136,21 +126,20 @@ export default function Dashboard() {
               </Link>
               <Link to="/registrars" className="quick-action">
                 <span>
-                  <div className="qa-label"><RightOutlined style={{ marginRight: 8, fontSize: 13 }} />注册商同步</div>
+                  <div className="qa-label"><BankOutlined style={{ marginRight: 8, fontSize: 13 }} />注册商同步</div>
                   <div className="qa-desc">从注册商 API 自动导入</div>
                 </span>
                 <RightOutlined style={{ color: '#a8a29e', fontSize: 11 }} />
               </Link>
             </div>
-          </div>
+          </Panel>
 
-          <div className="panel">
-            <div className="panel-head">
-              <h3 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <WarningOutlined style={{ color: stats.expiring_soon > 0 ? '#d97706' : '#a8a29e' }} />即将到期
-              </h3>
-              <span className="faint" style={{ fontSize: 12 }}>30 天内</span>
-            </div>
+          <Panel
+            title={<span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <WarningOutlined style={{ color: stats.expiring_soon > 0 ? '#d97706' : '#a8a29e' }} />即将到期
+            </span>}
+            extra={<span className="faint" style={{ fontSize: 12 }}>30 天内</span>}
+          >
             <div className="panel-body">
               {expiring.length === 0 ? (
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="近期没有到期域名" />
@@ -170,7 +159,7 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-          </div>
+          </Panel>
         </div>
       </div>
     </div>

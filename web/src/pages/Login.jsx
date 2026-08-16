@@ -1,20 +1,49 @@
-import { useState } from 'react'
-import { Button, Form, Input } from 'antd'
-import { UserOutlined, LockOutlined, ArrowRightOutlined } from '@ant-design/icons'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Button, Form } from 'antd'
+import { LoginOutlined } from '@ant-design/icons'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import AuthDialog from '../components/AuthDialog'
 import { notify } from '../utils/toast'
 
 export default function Login() {
-  const { login } = useAuth()
+  const { login, register } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [form] = Form.useForm()
+  const [mode, setMode] = useState('login')
+  const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const isRegister = mode === 'register'
+
+  // /register opens the popup in register mode; /login keeps it closed until
+  // the user clicks "进入控制台".
+  useEffect(() => {
+    if (location.pathname === '/register') {
+      setMode('register')
+      setOpen(true)
+    } else {
+      setMode('login')
+      setOpen(false)
+    }
+  }, [location.pathname])
+
+  const switchMode = (next) => {
+    setMode(next)
+    form.resetFields()
+  }
 
   const onFinish = async (values) => {
     setLoading(true)
     try {
-      await login(values)
-      notify('success', '登录成功')
+      if (isRegister) {
+        await register({ username: values.username, email: values.email, password: values.password })
+        notify('success', '注册成功，欢迎使用')
+      } else {
+        await login(values)
+        notify('success', '登录成功')
+      }
+      setOpen(false)
       navigate('/')
     } catch {
       // handled by interceptor
@@ -42,27 +71,31 @@ export default function Login() {
         <div className="footnote">Domain Manager · 域名管理与比价平台</div>
       </div>
       <div className="auth-form">
-        <div className="auth-card">
-          <h2>登录</h2>
-          <p className="sub">使用你的账号继续</p>
-          <Form layout="vertical" onFinish={onFinish} requiredMark={false} size="large">
-            <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
-              <Input prefix={<UserOutlined style={{ color: '#a8a29e' }} />} placeholder="用户名" autoComplete="username" />
-            </Form.Item>
-            <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
-              <Input.Password prefix={<LockOutlined style={{ color: '#a8a29e' }} />} placeholder="密码" autoComplete="current-password" />
-            </Form.Item>
-            <Form.Item style={{ marginBottom: 12 }}>
-              <Button type="primary" htmlType="submit" loading={loading} block icon={<ArrowRightOutlined />}>
-                登录
-              </Button>
-            </Form.Item>
-          </Form>
-          <div className="auth-alt">
-            还没有账号？<Link to="/register">立即注册</Link>
-          </div>
+        <div className="auth-console">
+          <p className="auth-console-sub">
+            登录后进入控制台，集中管理域名、证书与到期提醒。
+          </p>
+          <Button
+            type="primary"
+            size="large"
+            className="auth-enter-btn"
+            icon={<LoginOutlined />}
+            onClick={() => { switchMode('login'); setOpen(true) }}
+          >
+            进入控制台
+          </Button>
         </div>
       </div>
+
+      <AuthDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        mode={mode}
+        onSwitchMode={switchMode}
+        loading={loading}
+        onFinish={onFinish}
+        form={form}
+      />
     </div>
   )
 }

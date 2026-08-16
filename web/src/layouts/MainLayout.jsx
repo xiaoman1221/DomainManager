@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Layout, Menu, Dropdown } from 'antd'
+import { Layout, Menu, Dropdown, Drawer } from 'antd'
 import {
   DashboardOutlined,
   GlobalOutlined,
@@ -11,10 +11,12 @@ import {
   LogoutOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  MenuOutlined,
 } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import AppAvatar from '../components/AppAvatar'
+import { useIsMobile } from '../utils/useIsMobile'
 import { notify } from '../utils/toast'
 
 const { Sider, Header, Content } = Layout
@@ -31,9 +33,11 @@ const NAV = [
 
 export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const isMobile = useIsMobile()
 
   const selectedKey = useMemo(() => {
     const match = NAV.filter((n) => n.key !== '/' && location.pathname.startsWith(n.key)).sort(
@@ -73,59 +77,63 @@ export default function MainLayout() {
     }
   }
 
+  const onNavClick = ({ key }) => {
+    navigate(key)
+    setMobileMenuOpen(false)
+  }
+
+  const navMenu = (
+    <Menu
+      className="app-menu"
+      mode="inline"
+      selectedKeys={[selectedKey]}
+      items={menuItems}
+      onClick={onNavClick}
+      style={{ borderInlineEnd: 'none' }}
+    />
+  )
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        width={224}
-        collapsedWidth={64}
-        collapsible
-        collapsed={collapsed}
-        trigger={null}
-        className="app-sider"
-        theme="light"
-      >
-        <div className="app-logo">
-          <div className="app-logo-mark">DM</div>
-          {!collapsed && <div className="app-logo-text">Domain Manager</div>}
-        </div>
-        <Menu
-          className="app-menu"
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          items={menuItems}
-          onClick={({ key }) => navigate(key)}
-          style={{ borderInlineEnd: 'none' }}
-        />
-      </Sider>
+      {!isMobile && (
+        <Sider
+          width={224}
+          collapsedWidth={64}
+          collapsible
+          collapsed={collapsed}
+          trigger={null}
+          className="app-sider"
+          theme="light"
+        >
+          <div className="app-logo">
+            <div className="app-logo-mark">DM</div>
+            {!collapsed && <div className="app-logo-text">Domain Manager</div>}
+          </div>
+          {navMenu}
+        </Sider>
+      )}
       <Layout>
         <Header className="app-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <span
-              style={{ cursor: 'pointer', color: '#57534e' }}
-              onClick={() => setCollapsed((c) => !c)}
-            >
-              {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            </span>
-            <span className="app-header-title">{pageTitle}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+            {isMobile ? (
+              <span className="nav-trigger" onClick={() => setMobileMenuOpen(true)}>
+                <MenuOutlined />
+              </span>
+            ) : (
+              <span className="nav-trigger" onClick={() => setCollapsed((c) => !c)}>
+                {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              </span>
+            )}
+            <span className="app-header-title text-ellipsis">{pageTitle}</span>
           </div>
           <Dropdown menu={{ items: userItems, onClick: onUserCommand }} placement="bottomRight">
             <div className="app-user">
               <AppAvatar email={user?.email} name={user?.nickname || user?.username} size={30} />
-              <span style={{ fontSize: 13, color: '#1c1917', fontWeight: 500 }}>
+              <span className="uname" style={{ fontSize: 13, color: '#1c1917', fontWeight: 500 }}>
                 {user?.nickname || user?.username || '用户'}
               </span>
               {user?.role === 'admin' && (
-                <span
-                  style={{
-                    fontSize: 11,
-                    border: '1px solid var(--border-strong)',
-                    borderRadius: 4,
-                    padding: '1px 6px',
-                    color: '#57534e',
-                  }}
-                >
-                  管理员
-                </span>
+                <span className="role-badge">管理员</span>
               )}
             </div>
           </Dropdown>
@@ -134,6 +142,23 @@ export default function MainLayout() {
           <Outlet />
         </Content>
       </Layout>
+
+      {isMobile && (
+        <Drawer
+          placement="left"
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+          width={248}
+          closable={false}
+          styles={{ body: { padding: 0 } }}
+        >
+          <div className="app-logo">
+            <div className="app-logo-mark">DM</div>
+            <div className="app-logo-text">Domain Manager</div>
+          </div>
+          {navMenu}
+        </Drawer>
+      )}
     </Layout>
   )
 }
