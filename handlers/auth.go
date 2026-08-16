@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"DomainManager/database"
 	"DomainManager/models"
@@ -27,7 +28,11 @@ func Register(c *gin.Context) {
 	}
 
 	if err := database.DB.Create(&user).Error; err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "username or email already exists"})
+		if strings.Contains(strings.ToLower(err.Error()), "unique") {
+			c.JSON(http.StatusConflict, gin.H{"error": "username or email already exists"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+		}
 		return
 	}
 

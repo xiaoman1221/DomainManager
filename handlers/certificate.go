@@ -6,7 +6,6 @@ import (
 	"DomainManager/services"
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,7 +25,8 @@ func ListCertificates(c *gin.Context) {
 		case "active":
 			query = query.Where("status = ?", "active")
 		case "expired":
-			query = query.Where("status = ?", "expired")
+			now := time.Now()
+			query = query.Where("(status = ? OR (not_after IS NOT NULL AND not_after < ?))", "expired", now)
 		case "expiring_30":
 			now := time.Now()
 			limit := now.AddDate(0, 0, 30)
@@ -34,7 +34,7 @@ func ListCertificates(c *gin.Context) {
 		}
 	}
 
-	if err := query.Order("not_after ASC").Find(&certs).Error; err != nil {
+	if err := query.Order("not_after IS NULL, not_after ASC").Find(&certs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list certificates"})
 		return
 	}
@@ -81,18 +81,22 @@ func CreateCertificate(c *gin.Context) {
 
 	if req.NotBefore != "" {
 		t, err := time.Parse("2006-01-02", req.NotBefore)
-		if err == nil {
-			cert.NotBefore = &t
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid not_before format, use YYYY-MM-DD"})
+			return
 		}
+		cert.NotBefore = &t
 	}
 	if req.NotAfter != "" {
 		t, err := time.Parse("2006-01-02", req.NotAfter)
-		if err == nil {
-			cert.NotAfter = &t
-			if t.Before(time.Now()) {
-				cert.IsExpired = true
-				cert.Status = "expired"
-			}
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid not_after format, use YYYY-MM-DD"})
+			return
+		}
+		cert.NotAfter = &t
+		if t.Before(time.Now()) {
+			cert.IsExpired = true
+			cert.Status = "expired"
 		}
 	}
 
@@ -149,12 +153,14 @@ func UpdateCertificate(c *gin.Context) {
 	}
 	if req.NotAfter != "" {
 		t, err := time.Parse("2006-01-02", req.NotAfter)
-		if err == nil {
-			cert.NotAfter = &t
-			cert.IsExpired = t.Before(time.Now())
-			if cert.IsExpired {
-				cert.Status = "expired"
-			}
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid not_after format, use YYYY-MM-DD"})
+			return
+		}
+		cert.NotAfter = &t
+		cert.IsExpired = t.Before(time.Now())
+		if cert.IsExpired {
+			cert.Status = "expired"
 		}
 	}
 
@@ -253,30 +259,9 @@ func GetCertificateStats(c *gin.Context) {
 	database.DB.Model(&models.Certificate{}).Where("user_id = ? AND not_after IS NOT NULL AND not_after > ? AND not_after <= ?", userID, now, limit).Count(&expiringSoon)
 
 	c.JSON(http.StatusOK, gin.H{
-		"total":        total,
-		"active":       active,
-		"expired":      expired,
+		"total":         total,
+		"active":        active,
+		"expired":       expired,
 		"expiring_soon": expiringSoon,
 	})
-}
-
-// parseTime is a helper to parse time strings
-func parseTime(s string) (*time.Time, error) {
-	if s == "" {
-		return nil, nil
-	}
-	t, err := time.Parse("2006-01-02", s)
-	if err != nil {
-		t, err = time.Parse(time.RFC3339, s)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &t, nil
-}
-
-// Helper to parse uint from string
-func parseUint(s string) uint {
-	v, _ := strconv.ParseUint(s, 10, 64)
-	return uint(v)
 }

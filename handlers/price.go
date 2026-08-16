@@ -18,9 +18,10 @@ func ComparePrices(c *gin.Context) {
 		return
 	}
 
-	domain := strings.TrimSpace(req.Domain)
+	domain := strings.ToLower(strings.TrimSpace(req.Domain))
+	domain = strings.TrimSuffix(domain, ".")
 	parts := strings.Split(domain, ".")
-	if len(parts) < 2 {
+	if len(parts) < 2 || parts[len(parts)-1] == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid domain format"})
 		return
 	}
@@ -35,6 +36,7 @@ func ComparePrices(c *gin.Context) {
 	}
 
 	allPrices := make([]models.PriceResult, 0)
+	// DB rows are legacy cached data; label them as reference prices.
 	for _, p := range dbPrices {
 		allPrices = append(allPrices, models.PriceResult{
 			Registrar:     p.Registrar,
@@ -44,6 +46,7 @@ func ComparePrices(c *gin.Context) {
 			TransferPrice: p.TransferPrice,
 			Currency:      p.Currency,
 			URL:           p.URL,
+			Reference:     true,
 		})
 	}
 	allPrices = append(allPrices, apiPrices...)
@@ -72,31 +75,22 @@ func GetSupportedTLDs(c *gin.Context) {
 }
 
 func RefreshPrices(c *gin.Context) {
-	domain := c.Query("domain")
+	domain := strings.ToLower(strings.TrimSpace(c.Query("domain")))
 	if domain == "" {
 		domain = "example.com"
 	}
 
+	// Live registrar prices are not available; return the built-in reference
+	// prices without writing them to the database as if they were real quotes.
 	prices, err := services.QueryRegistrarPrices(domain)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to refresh prices"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	for _, p := range prices {
-		dbPrice := models.DomainPrice{
-			Registrar:     p.Registrar,
-			TLD:           p.TLD,
-			RegisterPrice: p.RegisterPrice,
-			RenewPrice:    p.RenewPrice,
-			TransferPrice: p.TransferPrice,
-			Currency:      p.Currency,
-			URL:           p.URL,
-		}
-		database.DB.Where(models.DomainPrice{Registrar: p.Registrar, TLD: p.TLD}).
-			Assign(dbPrice).
-			FirstOrCreate(&models.DomainPrice{})
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "prices refreshed", "count": len(prices)})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "当前仅提供估算参考价，未写入数据库",
+		"prices":  prices,
+		"count":   len(prices),
+	})
 }

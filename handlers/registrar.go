@@ -16,8 +16,10 @@ import (
 )
 
 func ListRegistrars(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+
 	var registrars []models.Registrar
-	if err := database.DB.Order("created_at DESC").Find(&registrars).Error; err != nil {
+	if err := database.DB.Where("user_id = ?", userID).Order("created_at DESC").Find(&registrars).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list registrars"})
 		return
 	}
@@ -25,9 +27,10 @@ func ListRegistrars(c *gin.Context) {
 }
 
 func GetRegistrar(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
 	id := c.Param("id")
 	var registrar models.Registrar
-	if err := database.DB.First(&registrar, id).Error; err != nil {
+	if err := database.DB.Where("id = ? AND user_id = ?", id, userID).First(&registrar).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "registrar not found"})
 		return
 	}
@@ -35,6 +38,8 @@ func GetRegistrar(c *gin.Context) {
 }
 
 func CreateRegistrar(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+
 	var req models.RegistrarCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -42,6 +47,7 @@ func CreateRegistrar(c *gin.Context) {
 	}
 
 	registrar := models.Registrar{
+		UserID:      userID,
 		Name:        req.Name,
 		Type:        req.Type,
 		APIEndpoint: req.APIEndpoint,
@@ -61,9 +67,10 @@ func CreateRegistrar(c *gin.Context) {
 }
 
 func UpdateRegistrar(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
 	id := c.Param("id")
 	var registrar models.Registrar
-	if err := database.DB.First(&registrar, id).Error; err != nil {
+	if err := database.DB.Where("id = ? AND user_id = ?", id, userID).First(&registrar).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "registrar not found"})
 		return
 	}
@@ -100,14 +107,18 @@ func UpdateRegistrar(c *gin.Context) {
 		updates["sync_enabled"] = *req.SyncEnabled
 	}
 
-	database.DB.Model(&registrar).Updates(updates)
-	database.DB.First(&registrar, id)
+	if err := database.DB.Model(&registrar).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update registrar"})
+		return
+	}
+	database.DB.Where("id = ? AND user_id = ?", id, userID).First(&registrar)
 	c.JSON(http.StatusOK, registrar)
 }
 
 func DeleteRegistrar(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
 	id := c.Param("id")
-	result := database.DB.Delete(&models.Registrar{}, id)
+	result := database.DB.Where("id = ? AND user_id = ?", id, userID).Delete(&models.Registrar{})
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "registrar not found"})
 		return
@@ -125,14 +136,13 @@ func ImportDomainsFromRegistrar(c *gin.Context) {
 	}
 
 	var registrar models.Registrar
-	if err := database.DB.First(&registrar, req.RegistrarID).Error; err != nil {
+	if err := database.DB.Where("id = ? AND user_id = ?", req.RegistrarID, userID).First(&registrar).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "registrar not found"})
 		return
 	}
 
 	var imported int
 	var skipped int
-	var updated int
 	var refreshed int
 
 	if req.Domains != "" {
@@ -156,7 +166,9 @@ func ImportDomainsFromRegistrar(c *gin.Context) {
 				refreshICPForDomain(&existing)
 				now := time.Now()
 				existing.WhoisUpdatedAt = &now
-				database.DB.Save(&existing)
+				if err := database.DB.Save(&existing).Error; err != nil {
+					log.Printf("failed to save refreshed domain %s: %v", domain, err)
+				}
 				refreshed++
 			} else {
 				newDomain := models.Domain{
@@ -165,7 +177,11 @@ func ImportDomainsFromRegistrar(c *gin.Context) {
 					Registrar: registrar.Name,
 					Status:    "active",
 				}
-				database.DB.Create(&newDomain)
+				if err := database.DB.Create(&newDomain).Error; err != nil {
+					log.Printf("failed to import domain %s: %v", domain, err)
+					skipped++
+					continue
+				}
 				imported++
 			}
 		}
@@ -189,12 +205,18 @@ func ImportDomainsFromRegistrar(c *gin.Context) {
 				refreshICPForDomain(&existing)
 				now := time.Now()
 				existing.WhoisUpdatedAt = &now
-				database.DB.Save(&existing)
+				if err := database.DB.Save(&existing).Error; err != nil {
+					log.Printf("failed to save refreshed domain %s: %v", domain.Name, err)
+				}
 				refreshed++
 			} else {
 				domain.UserID = userID
 				domain.Registrar = registrar.Name
-				database.DB.Create(&domain)
+				if err := database.DB.Create(&domain).Error; err != nil {
+					log.Printf("failed to import domain %s: %v", domain.Name, err)
+					skipped++
+					continue
+				}
 				imported++
 			}
 		}
@@ -205,10 +227,9 @@ func ImportDomainsFromRegistrar(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"imported":  imported,
-		"updated":   updated,
 		"refreshed": refreshed,
 		"skipped":   skipped,
-		"message":   fmt.Sprintf("导入完成: 新增 %d 个, 更新 %d 个, 刷新 %d 个, 跳过 %d 个", imported, updated, refreshed, skipped),
+		"message":   fmt.Sprintf("导入完成: 新增 %d 个, 刷新 %d 个, 跳过 %d 个", imported, refreshed, skipped),
 	})
 }
 
@@ -234,14 +255,18 @@ func GetRegistrarTypes(c *gin.Context) {
 }
 
 func ExportRegistrars(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+
 	var registrars []models.Registrar
-	if err := database.DB.Order("created_at DESC").Find(&registrars).Error; err != nil {
+	if err := database.DB.Where("user_id = ?", userID).Order("created_at DESC").Find(&registrars).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to export registrars"})
 		return
 	}
 
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", "attachment; filename=registrars_export.csv")
+	// UTF-8 BOM so Excel opens Chinese headers correctly
+	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 	w := csv.NewWriter(c.Writer)
 	w.Write([]string{"名称", "类型", "API端点", "APIKey", "APISecret", "额外参数", "启用", "自动同步"})
@@ -262,6 +287,8 @@ func ExportRegistrars(c *gin.Context) {
 }
 
 func ImportRegistrarsCSV(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+
 	file, _, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
@@ -294,7 +321,7 @@ func ImportRegistrarsCSV(c *gin.Context) {
 		return ""
 	}
 
-	var created, skipped int
+	var created, updated, skipped int
 	for _, row := range records[1:] {
 		name := getCol(row, "名称")
 		regType := getCol(row, "类型")
@@ -304,7 +331,7 @@ func ImportRegistrarsCSV(c *gin.Context) {
 		}
 
 		var existing models.Registrar
-		if result := database.DB.Where("name = ?", name).First(&existing); result.Error == nil {
+		if result := database.DB.Where("name = ? AND user_id = ?", name, userID).First(&existing); result.Error == nil {
 			existing.Type = regType
 			existing.APIEndpoint = getCol(row, "API端点")
 			if v := getCol(row, "APIKey"); v != "" {
@@ -320,9 +347,15 @@ func ImportRegistrarsCSV(c *gin.Context) {
 			if v := getCol(row, "自动同步"); v != "" {
 				existing.SyncEnabled = v == "true" || v == "TRUE" || v == "1"
 			}
-			database.DB.Save(&existing)
+			if err := database.DB.Save(&existing).Error; err != nil {
+				log.Printf("failed to update registrar %s: %v", name, err)
+				skipped++
+				continue
+			}
+			updated++
 		} else {
 			newReg := models.Registrar{
+				UserID:      userID,
 				Name:        name,
 				Type:        regType,
 				APIEndpoint: getCol(row, "API端点"),
@@ -332,15 +365,20 @@ func ImportRegistrarsCSV(c *gin.Context) {
 				Enabled:     getCol(row, "启用") == "true" || getCol(row, "启用") == "TRUE" || getCol(row, "启用") == "1",
 				SyncEnabled: getCol(row, "自动同步") == "true" || getCol(row, "自动同步") == "TRUE" || getCol(row, "自动同步") == "1",
 			}
-			database.DB.Create(&newReg)
+			if err := database.DB.Create(&newReg).Error; err != nil {
+				log.Printf("failed to create registrar %s: %v", name, err)
+				skipped++
+				continue
+			}
+			created++
 		}
-		created++
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"created": created,
+		"updated": updated,
 		"skipped": skipped,
-		"message": "导入完成",
+		"message": fmt.Sprintf("导入完成: 新建 %d, 更新 %d, 跳过 %d", created, updated, skipped),
 	})
 }
 

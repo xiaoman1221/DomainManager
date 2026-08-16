@@ -73,8 +73,11 @@ func RefreshDomainInfo(c *gin.Context) {
 	whoisErr := refreshWhoisForDomain(&domain)
 	icpErr := refreshICPForDomain(&domain)
 
-	now := time.Now()
-	domain.WhoisUpdatedAt = &now
+	// Only record the WHOIS timestamp when the WHOIS refresh actually succeeded.
+	if whoisErr == nil {
+		now := time.Now()
+		domain.WhoisUpdatedAt = &now
+	}
 	database.DB.Save(&domain)
 
 	resp := gin.H{
@@ -235,13 +238,16 @@ func QueryRenewalPrice(c *gin.Context) {
 				c.JSON(http.StatusOK, result)
 				return
 			}
-			log.Printf("registrar price query failed for %s: %v (error: %s)", domain.Name, err, result.Error)
+			if result != nil {
+				log.Printf("registrar price query failed for %s: %v (error: %s)", domain.Name, err, result.Error)
+			} else {
+				log.Printf("registrar price query failed for %s: %v", domain.Name, err)
+			}
 		}
 	}
 
-	// Fallback: use built-in price comparison data, pick lowest renewal price
-	// USD to CNY fixed rate
-	const usdToCNY = 7.25
+	// Fallback: use built-in reference price data (already in CNY), pick the
+	// lowest renewal price.
 
 	parts := strings.Split(domain.Name, ".")
 	tld := ""
@@ -257,13 +263,13 @@ func QueryRenewalPrice(c *gin.Context) {
 	}
 
 	if lowestPrice > 0 {
-		cnyPrice := lowestPrice * usdToCNY
-		domain.RenewalPrice = cnyPrice
+		price := lowestPrice
+		domain.RenewalPrice = price
 		domain.PriceSource = "fallback"
 		database.DB.Save(&domain)
 		c.JSON(http.StatusOK, &services.RenewalPriceResult{
 			Domain:   domain.Name,
-			Price:    cnyPrice,
+			Price:    price,
 			Currency: "CNY",
 			Source:   "fallback",
 		})
@@ -304,6 +310,8 @@ func BatchQueryRenewalPrice(c *gin.Context) {
 	// Cache registrar lookups
 	registrarCache := make(map[string]models.Registrar)
 	var cacheMu sync.Mutex
+	// Serialize SQLite writes from the worker goroutines.
+	var writeMu sync.Mutex
 
 	type result struct {
 		ID     uint    `json:"id"`
@@ -343,19 +351,24 @@ func BatchQueryRenewalPrice(c *gin.Context) {
 					if err == nil && priceResult.Error == "" && priceResult.Price > 0 {
 						r.Price = priceResult.Price
 						r.Source = priceResult.Source
+						writeMu.Lock()
 						database.DB.Model(&dom).Updates(map[string]interface{}{
 							"renewal_price": priceResult.Price,
 							"price_source":  priceResult.Source,
 						})
+						writeMu.Unlock()
 						results[idx] = r
 						return
 					}
-					log.Printf("batch price query failed for %s: %v (error: %s)", dom.Name, err, priceResult.Error)
+					if priceResult != nil {
+						log.Printf("batch price query failed for %s: %v (error: %s)", dom.Name, err, priceResult.Error)
+					} else {
+						log.Printf("batch price query failed for %s: %v", dom.Name, err)
+					}
 				}
 			}
 
-			// Fallback: built-in price comparison data
-			const usdToCNY = 7.25
+			// Fallback: built-in reference price data (already in CNY)
 			parts := strings.Split(dom.Name, ".")
 			tld := ""
 			if len(parts) >= 2 {
@@ -369,13 +382,15 @@ func BatchQueryRenewalPrice(c *gin.Context) {
 				}
 			}
 			if lowestPrice > 0 {
-				cnyPrice := lowestPrice * usdToCNY
-				r.Price = cnyPrice
+				price := lowestPrice
+				r.Price = price
 				r.Source = "fallback"
+				writeMu.Lock()
 				database.DB.Model(&dom).Updates(map[string]interface{}{
-					"renewal_price": cnyPrice,
+					"renewal_price": price,
 					"price_source":  "fallback",
 				})
+				writeMu.Unlock()
 			} else {
 				r.Error = "no price data available"
 			}
@@ -386,4 +401,8 @@ func BatchQueryRenewalPrice(c *gin.Context) {
 	wg.Wait()
 
 	c.JSON(http.StatusOK, gin.H{"data": results})
+}
+
+func GetDigitalPlatSuffixes(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"suffixes": services.DigitalPlatSuffixes()})
 }

@@ -54,7 +54,6 @@ func CreateDomain(c *gin.Context) {
 func ListDomains(c *gin.Context) {
 	userID := c.MustGet("user_id").(uint)
 
-	var domains []models.Domain
 	query := database.DB.Where("user_id = ?", userID)
 
 	if status := c.Query("status"); status != "" {
@@ -62,7 +61,8 @@ func ListDomains(c *gin.Context) {
 		case "active":
 			query = query.Where("status = ?", "active")
 		case "expired":
-			query = query.Where("status = ?", "expired")
+			now := time.Now()
+			query = query.Where("(status = ? OR (expiry_date IS NOT NULL AND expiry_date < ?))", "expired", now)
 		case "expiring_30":
 			now := time.Now()
 			limit := now.AddDate(0, 0, 30)
@@ -74,7 +74,8 @@ func ListDomains(c *gin.Context) {
 		}
 	}
 	if keyword := c.Query("keyword"); keyword != "" {
-		query = query.Where("name LIKE ?", "%"+keyword+"%")
+		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(keyword)
+		query = query.Where("name LIKE ? ESCAPE '\\'", "%"+escaped+"%")
 	}
 
 	sortBy := c.DefaultQuery("sort_by", "created_at")
@@ -88,15 +89,32 @@ func ListDomains(c *gin.Context) {
 	if sortOrder != "ASC" && sortOrder != "DESC" {
 		sortOrder = "DESC"
 	}
-	// NULL values last
-	query = query.Order(fmt.Sprintf("%s IS NULL %s, %s %s", sortBy, sortOrder, sortBy, sortOrder))
+	// Sort with NULL values always last, regardless of direction.
+	query = query.Order(fmt.Sprintf("CASE WHEN %s IS NULL THEN 1 ELSE 0 END, %s %s", sortBy, sortBy, sortOrder))
 
-	if err := query.Find(&domains).Error; err != nil {
+	var total int64
+	if err := query.Model(&models.Domain{}).Count(&total).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list domains"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": domains, "total": len(domains)})
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	var domains []models.Domain
+	if err := query.Order(fmt.Sprintf("CASE WHEN %s IS NULL THEN 1 ELSE 0 END, %s %s", sortBy, sortBy, sortOrder)).
+		Offset((page - 1) * pageSize).Limit(pageSize).Find(&domains).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list domains"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": domains, "total": total})
 }
 
 func GetDomain(c *gin.Context) {
@@ -173,6 +191,9 @@ func UpdateDomain(c *gin.Context) {
 	if req.ExpiryReminder != nil {
 		updates["expiry_reminder"] = *req.ExpiryReminder
 	}
+	if req.RenewalPrice != nil {
+		updates["renewal_price"] = *req.RenewalPrice
+	}
 
 	if err := database.DB.Model(&domain).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update domain"})
@@ -215,7 +236,7 @@ func BatchUpdateDomains(c *gin.Context) {
 	userID := c.MustGet("user_id").(uint)
 
 	var req struct {
-		IDs    []uint                `json:"ids" binding:"required"`
+		IDs    []uint                 `json:"ids" binding:"required"`
 		Fields map[string]interface{} `json:"fields" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -223,7 +244,29 @@ func BatchUpdateDomains(c *gin.Context) {
 		return
 	}
 
-	result := database.DB.Where("id IN ? AND user_id = ?", req.IDs, userID).Model(&models.Domain{}).Updates(req.Fields)
+	// Only allow updating a fixed set of safe fields.
+	allowedFields := map[string]bool{
+		"name": true, "registrar": true, "status": true, "note": true,
+		"group": true, "tags": true, "cert_count": true,
+		"auto_renew": true, "auto_update": true, "update_icp": true,
+		"expiry_reminder": true, "renewal_price": true, "nameservers": true,
+	}
+	filtered := map[string]interface{}{}
+	for k, v := range req.Fields {
+		if allowedFields[k] {
+			filtered[k] = v
+		}
+	}
+	if len(filtered) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no allowed fields to update"})
+		return
+	}
+
+	result := database.DB.Where("id IN ? AND user_id = ?", req.IDs, userID).Model(&models.Domain{}).Updates(filtered)
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to batch update domains"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"updated": result.RowsAffected})
 }
 
@@ -235,11 +278,14 @@ func GetDomainStats(c *gin.Context) {
 	var expiringSoon int64
 
 	database.DB.Model(&models.Domain{}).Where("user_id = ?", userID).Count(&total)
-	database.DB.Model(&models.Domain{}).Where("user_id = ? AND status = ?", userID, "active").Count(&active)
-
-	oneMonthLater := time.Now().AddDate(0, 1, 0)
+	now := time.Now()
 	database.DB.Model(&models.Domain{}).
-		Where("user_id = ? AND expiry_date IS NOT NULL AND expiry_date <= ?", userID, oneMonthLater).
+		Where("user_id = ? AND status = ? AND (expiry_date IS NULL OR expiry_date >= ?)", userID, "active", now).
+		Count(&active)
+
+	oneMonthLater := now.AddDate(0, 1, 0)
+	database.DB.Model(&models.Domain{}).
+		Where("user_id = ? AND expiry_date IS NOT NULL AND expiry_date > ? AND expiry_date <= ?", userID, now, oneMonthLater).
 		Count(&expiringSoon)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -260,6 +306,8 @@ func ExportDomains(c *gin.Context) {
 
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Header("Content-Disposition", "attachment; filename=domains_export.csv")
+	// UTF-8 BOM so Excel opens Chinese headers correctly
+	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
 	w := csv.NewWriter(c.Writer)
 	w.Write([]string{"域名", "注册商", "到期时间", "分组", "标签", "备注", "自动续费", "NS服务器", "证书数量"})
@@ -363,13 +411,13 @@ func ImportDomainsCSV(c *gin.Context) {
 			updated++
 		} else {
 			newDomain := models.Domain{
-				UserID:    userID,
-				Name:      domain,
-				Registrar: getCol(row, "注册商"),
-				Status:    "active",
-				Note:      getCol(row, "备注"),
-				Group:     getCol(row, "分组"),
-				Tags:      getCol(row, "标签"),
+				UserID:      userID,
+				Name:        domain,
+				Registrar:   getCol(row, "注册商"),
+				Status:      "active",
+				Note:        getCol(row, "备注"),
+				Group:       getCol(row, "分组"),
+				Tags:        getCol(row, "标签"),
 				Nameservers: getCol(row, "NS服务器"),
 			}
 			if expiry := getCol(row, "到期时间"); expiry != "" {

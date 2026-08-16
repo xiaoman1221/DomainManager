@@ -2,10 +2,15 @@ package services
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
+	"net"
 	"net/http"
+	"net/smtp"
+	"strings"
 	"time"
 )
 
@@ -167,23 +172,77 @@ func (s *NotificationService) SendEmail(config EmailConfig, subject, body string
 	if config.SMTPHost == "" || config.SMTPPort == "" {
 		return fmt.Errorf("SMTP host and port are required")
 	}
-
-	// Simple email sending via net/smtp
-	addr := fmt.Sprintf("%s:%s", config.SMTPHost, config.SMTPPort)
+	if config.From == "" {
+		config.From = config.Username
+	}
 
 	toAddrs := splitAndTrim(config.To, ",")
 	if len(toAddrs) == 0 {
 		return fmt.Errorf("at least one recipient email is required")
 	}
 
-	// Build raw email
-	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n%s",
-		config.From, config.To, subject, body)
+	addr := net.JoinHostPort(config.SMTPHost, config.SMTPPort)
+	tlsConfig := &tls.Config{ServerName: config.SMTPHost}
 
-	// For now, just return nil - actual SMTP sending requires net/smtp
-	// In production, this should use net/smtp or a library
-	_ = addr
-	_ = msg
+	// Port 465 uses implicit TLS; other ports use plain text + STARTTLS.
+	var conn net.Conn
+	var err error
+	if config.SMTPPort == "465" {
+		conn, err = tls.Dial("tcp", addr, tlsConfig)
+	} else {
+		conn, err = net.DialTimeout("tcp", addr, 10*time.Second)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to connect to SMTP server: %w", err)
+	}
+	defer conn.Close()
+
+	client, err := smtp.NewClient(conn, config.SMTPHost)
+	if err != nil {
+		return fmt.Errorf("failed to start SMTP session: %w", err)
+	}
+	defer client.Close()
+
+	if config.SMTPPort != "465" {
+		if ok, _ := client.Extension("STARTTLS"); ok {
+			if err := client.StartTLS(tlsConfig); err != nil {
+				return fmt.Errorf("failed to start TLS: %w", err)
+			}
+		}
+	}
+
+	if config.Username != "" {
+		auth := smtp.PlainAuth("", config.Username, config.Password, config.SMTPHost)
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("SMTP authentication failed: %w", err)
+		}
+	}
+
+	if err := client.Mail(config.From); err != nil {
+		return fmt.Errorf("SMTP MAIL FROM failed: %w", err)
+	}
+	for _, to := range toAddrs {
+		if err := client.Rcpt(to); err != nil {
+			return fmt.Errorf("SMTP RCPT TO %s failed: %w", to, err)
+		}
+	}
+
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("failed to open SMTP data connection: %w", err)
+	}
+
+	encodedSubject := mime.QEncoding.Encode("UTF-8", subject)
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n%s",
+		config.From, strings.Join(toAddrs, ","), encodedSubject, body)
+	if _, err := w.Write([]byte(msg)); err != nil {
+		w.Close()
+		return fmt.Errorf("failed to write email body: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to finish email: %w", err)
+	}
+	client.Quit()
 
 	return nil
 }

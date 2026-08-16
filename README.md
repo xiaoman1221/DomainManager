@@ -7,7 +7,7 @@
 - **域名管理** - 域名的增删改查、批量操作、CSV导入导出
 - **WHOIS查询** - 域名注册信息查询（依赖 [next-whois](https://github.com/zmh-program/next-whois)）
 - **ICP备案查询** - 域名备案信息查询（依赖 [ICP_Query](https://github.com/HG-ha/ICP_Query)）
-- **价格比对** - 多注册商域名续费价格对比
+- **价格比对** - 多注册商域名续费价格对比（当前为估算参考价，非实时注册商报价）
 - **注册商管理** - 注册商信息维护、域名批量导入
 - **证书管理** - SSL证书管理，支持与 Certimate 同步
 - **到期通知** - 多渠道域名到期提醒（邮件、Webhook等）
@@ -22,10 +22,10 @@
 - JWT 认证
 
 **前端**
-- Vue 3 + Vite
-- Element Plus
-- Pinia 状态管理
-- Vue Router
+- React 18 + Vite
+- Ant Design 5
+- React Router
+- axios
 
 ## 快速开始
 
@@ -63,11 +63,13 @@ cp .env.example .env
 | `PORT` | 服务端口 | 8080 |
 | `GIN_MODE` | Gin模式（debug/release） | debug |
 | `DB_PATH` | 数据库文件路径 | domain_manager.db |
-| `JWT_KEY` | JWT密钥 | - |
+| `JWT_KEY` | JWT密钥（建议 `openssl rand -hex 32` 生成；不设置时每次启动随机生成，重启后所有登录失效） | - |
 | `WHOIS_API_URL` | WHOIS API地址 | http://whois:3000 |
 | `ICP_API_URL` | ICP备案API地址 | http://icp:16181 |
 
 **构建运行**
+
+> 后端通过 `//go:embed web/dist/*` 内嵌前端构建产物，因此 `go build` 前必须先构建前端。
 
 ```bash
 # 一键构建（前端+后端）
@@ -87,6 +89,12 @@ bash build.sh
 - 密码：`123456`
 
 > 请登录后立即修改默认密码。
+
+## 权限说明
+
+- 用户管理、系统设置、系统信息、Certimate 配置/同步等接口仅管理员可用。
+- 注册商数据按用户隔离，互不可见。
+- 登录/注册接口有基于 IP 的限流保护。
 
 ## API 接口
 
@@ -114,8 +122,12 @@ DomainManager/
 ├── router/          # 路由定义
 ├── services/        # 业务逻辑（WHOIS/ICP/价格等）
 ├── utils/           # 工具函数
-├── web/             # Vue前端
+├── web/             # React 前端
 │   ├── src/
+│   │   ├── api/      # 接口封装
+│   │   ├── pages/    # 页面
+│   │   ├── layouts/  # 主布局
+│   │   └── utils/    # 头像/格式化等
 │   └── dist/        # 前端构建产物
 ├── .env.example     # 环境变量模板
 ├── go.mod

@@ -34,6 +34,7 @@ func Init() {
 	}
 
 	seedAdmin()
+	assignLegacyRegistrarOwners()
 	log.Println("database initialized successfully")
 }
 
@@ -64,4 +65,16 @@ func seedAdmin() {
 	}
 
 	log.Println("default admin account created (username: admin, password: 123456)")
+}
+
+// assignLegacyRegistrarOwners migrates registrar rows created before the
+// per-user scoping was introduced (UserID == 0) to the first admin user.
+func assignLegacyRegistrarOwners() {
+	var adminUser models.User
+	if err := DB.Where("role = ?", "admin").Order("id ASC").First(&adminUser).Error; err != nil {
+		return
+	}
+	if err := DB.Model(&models.Registrar{}).Where("user_id = ?", 0).Update("user_id", adminUser.ID).Error; err != nil {
+		log.Printf("failed to assign legacy registrars: %v", err)
+	}
 }

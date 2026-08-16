@@ -27,8 +27,8 @@ func Setup() *gin.Engine {
 	{
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", handlers.Register)
-			auth.POST("/login", handlers.Login)
+			auth.POST("/register", middleware.RateLimitAuth(), handlers.Register)
+			auth.POST("/login", middleware.RateLimitAuth(), handlers.Login)
 			auth.GET("/profile", middleware.AuthRequired(), handlers.GetProfile)
 		}
 
@@ -52,6 +52,7 @@ func Setup() *gin.Engine {
 		whois := api.Group("/whois", middleware.AuthRequired())
 		{
 			whois.GET("", handlers.QueryWhois)
+			whois.GET("/digitalplat-suffixes", handlers.GetDigitalPlatSuffixes)
 		}
 
 		icp := api.Group("/icp", middleware.AuthRequired())
@@ -84,9 +85,9 @@ func Setup() *gin.Engine {
 			certificates.GET("", handlers.ListCertificates)
 			certificates.GET("/stats", handlers.GetCertificateStats)
 			certificates.POST("", handlers.CreateCertificate)
-			certificates.GET("/certimate/config", handlers.GetCertimateConfig)
-			certificates.POST("/certimate/config", handlers.SaveCertimateConfig)
-			certificates.POST("/certimate/sync", handlers.SyncCertimateCertificates)
+			certificates.GET("/certimate/config", middleware.AdminRequired(), handlers.GetCertimateConfig)
+			certificates.POST("/certimate/config", middleware.AdminRequired(), handlers.SaveCertimateConfig)
+			certificates.POST("/certimate/sync", middleware.AdminRequired(), handlers.SyncCertimateCertificates)
 			certificates.GET("/:id", handlers.GetCertificate)
 			certificates.PUT("/:id", handlers.UpdateCertificate)
 			certificates.DELETE("/:id", handlers.DeleteCertificate)
@@ -107,14 +108,15 @@ func Setup() *gin.Engine {
 
 		settings := api.Group("/settings", middleware.AuthRequired())
 		{
-			settings.GET("", handlers.GetSystemSettings)
-			settings.PUT("", handlers.UpdateSystemSetting)
-			settings.GET("/info", handlers.GetSystemInfo)
+			// System-wide settings and user management are admin-only.
+			settings.GET("", middleware.AdminRequired(), handlers.GetSystemSettings)
+			settings.PUT("", middleware.AdminRequired(), handlers.UpdateSystemSetting)
+			settings.GET("/info", middleware.AdminRequired(), handlers.GetSystemInfo)
 			settings.PUT("/profile", handlers.UpdateUserProfile)
 			settings.PUT("/password", handlers.ChangePassword)
-			settings.GET("/users", handlers.ListAllUsers)
-			settings.PUT("/users/:id/role", handlers.UpdateUserRole)
-			settings.PUT("/users/:id/password", handlers.AdminUpdateUserPassword)
+			settings.GET("/users", middleware.AdminRequired(), handlers.ListAllUsers)
+			settings.PUT("/users/:id/role", middleware.AdminRequired(), handlers.UpdateUserRole)
+			settings.PUT("/users/:id/password", middleware.AdminRequired(), handlers.AdminUpdateUserPassword)
 		}
 	}
 

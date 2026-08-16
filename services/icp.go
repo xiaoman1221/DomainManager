@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -56,7 +57,7 @@ func QueryICP(domain string) (*ICPInfo, error) {
 	}
 	apiBase = strings.TrimRight(apiBase, "/")
 
-	apiURL := fmt.Sprintf("%s/query/web?search=%s", apiBase, domain)
+	apiURL := fmt.Sprintf("%s/query/web?search=%s", apiBase, url.QueryEscape(domain))
 
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Get(apiURL)

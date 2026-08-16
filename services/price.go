@@ -2,27 +2,12 @@ package services
 
 import (
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
-	"time"
 
 	"DomainManager/models"
 )
 
-var registrarAPIs = []struct {
-	Name string
-	URL  string
-}{
-	{"Namecheap", "https://www.namecheap.com/domains/registration/results/?domain=%s"},
-	{"GoDaddy", "https://www.godaddy.com/domainsearch/find?domainToCheck=%s"},
-	{"Cloudflare Registrar", "https://www.cloudflare.com/products/registrar/"},
-	{"Google Domains", "https://domains.google.com/registrar/search?query=%s"},
-	{"Porkbun", "https://porkbun.com/checkout/search?q=%s"},
-	{"Dynadot", "https://www.dynadot.com/domain/search?domain=%s"},
-	{"Spaceship", "https://spaceship.com/domain/search/?domain=%s"},
-}
-
+// DefaultTLDs returns the list of TLDs with built-in reference prices.
 func DefaultTLDs() []string {
 	return []string{
 		"com", "net", "org", "io", "co", "info", "biz", "xyz",
@@ -30,59 +15,22 @@ func DefaultTLDs() []string {
 	}
 }
 
+// QueryRegistrarPrices returns reference prices for the domain's TLD.
+//
+// NOTE: live scraping of registrar websites is intentionally NOT performed.
+// The values come from the built-in baseline table in GetFallbackPrices and
+// are estimates only; they are flagged with Reference=true so the UI can label
+// them as 参考价.
 func QueryRegistrarPrices(domain string) ([]models.PriceResult, error) {
-	parts := strings.Split(domain, ".")
-	if len(parts) < 2 {
+	parts := strings.Split(strings.TrimSpace(strings.ToLower(domain)), ".")
+	if len(parts) < 2 || parts[len(parts)-1] == "" {
 		return nil, fmt.Errorf("invalid domain")
 	}
 	tld := parts[len(parts)-1]
-
-	results := []models.PriceResult{}
-
-	client := &http.Client{Timeout: 5 * time.Second}
-
-	for _, api := range registrarAPIs {
-		url := fmt.Sprintf(api.URL, domain)
-		resp, err := client.Get(url)
-		if err != nil {
-			continue
-		}
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			continue
-		}
-
-		price := extractPrice(string(body), tld)
-		if price > 0 {
-			results = append(results, models.PriceResult{
-				Registrar:     api.Name,
-				TLD:           tld,
-				RegisterPrice: price,
-				RenewPrice:    price * 1.1,
-				TransferPrice: price * 0.9,
-				Currency:      "USD",
-				URL:           fmt.Sprintf(api.URL, domain),
-			})
-		}
-	}
-
-	if len(results) == 0 {
-		results = GetFallbackPrices(tld)
-	}
-
-	return results, nil
+	return GetFallbackPrices(tld), nil
 }
 
-func extractPrice(body, tld string) float64 {
-	var pricePatterns = []string{
-		fmt.Sprintf(`"price":%f`, 0.0),
-	}
-	_ = pricePatterns
-
-	return 0
-}
-
+// GetFallbackPrices returns hard-coded baseline (reference) prices in CNY.
 func GetFallbackPrices(tld string) []models.PriceResult {
 	// USD base prices, converted to CNY
 	const usdToCNY = 7.25
@@ -119,6 +67,7 @@ func GetFallbackPrices(tld string) []models.PriceResult {
 			TransferPrice: base * 0.95 * usdToCNY,
 			Currency:      "CNY",
 			URL:           fmt.Sprintf("https://www.namecheap.com/domains/registration/results/?domain=example.%s", tld),
+			Reference:     true,
 		},
 		{
 			Registrar:     "GoDaddy",
@@ -128,6 +77,7 @@ func GetFallbackPrices(tld string) []models.PriceResult {
 			TransferPrice: base * 1.1 * usdToCNY,
 			Currency:      "CNY",
 			URL:           fmt.Sprintf("https://www.godaddy.com/domainsearch/find?domainToCheck=example.%s", tld),
+			Reference:     true,
 		},
 		{
 			Registrar:     "Cloudflare",
@@ -137,6 +87,7 @@ func GetFallbackPrices(tld string) []models.PriceResult {
 			TransferPrice: base * 0.95 * usdToCNY,
 			Currency:      "CNY",
 			URL:           "https://www.cloudflare.com/products/registrar/",
+			Reference:     true,
 		},
 		{
 			Registrar:     "Porkbun",
@@ -146,6 +97,7 @@ func GetFallbackPrices(tld string) []models.PriceResult {
 			TransferPrice: base * 0.85 * usdToCNY,
 			Currency:      "CNY",
 			URL:           fmt.Sprintf("https://porkbun.com/checkout/search?q=example.%s", tld),
+			Reference:     true,
 		},
 		{
 			Registrar:     "Dynadot",
@@ -155,6 +107,7 @@ func GetFallbackPrices(tld string) []models.PriceResult {
 			TransferPrice: base * 1.0 * usdToCNY,
 			Currency:      "CNY",
 			URL:           fmt.Sprintf("https://www.dynadot.com/domain/search?domain=example.%s", tld),
+			Reference:     true,
 		},
 	}
 

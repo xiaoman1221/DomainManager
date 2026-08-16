@@ -118,6 +118,21 @@ jobs:
           fi
           printf 'images<<EOF\n%s\nEOF\n' "$IMAGES" >> "$GITHUB_OUTPUT"
 
+      # Extract the release version from the latest commit message when it
+      # starts with "release:vX.Y.Z" (e.g. "release:v1.0.0" -> v1.0.0).
+      # Tag pushes keep using the tag name itself (type=ref,event=tag below).
+      - name: Compute version
+        id: version
+        run: |
+          VER=""
+          if [ "${{ github.event_name }}" = "push" ]; then
+            MSG="$(git log -1 --format='%s')"
+            if [[ "$MSG" =~ release:(v[0-9]+\.[0-9]+\.[0-9]+) ]]; then
+              VER="${BASH_REMATCH[1]}"
+            fi
+          fi
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -125,8 +140,8 @@ jobs:
           images: ${{ steps.images.outputs.images }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ steps.version.outputs.version != '' }}
             type=ref,event=tag
-            type=sha,prefix=sha-
 
       - name: Build and push
         uses: docker/build-push-action@v6

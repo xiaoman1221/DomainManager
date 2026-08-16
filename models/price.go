@@ -26,4 +26,7 @@ type PriceResult struct {
 	TransferPrice float64 `json:"transfer_price"`
 	Currency      string  `json:"currency"`
 	URL           string  `json:"url"`
+	// Reference marks estimates (hard-coded baseline data) instead of live
+	// registrar quotes.
+	Reference bool `json:"reference,omitempty"`
 }

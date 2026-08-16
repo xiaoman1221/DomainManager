@@ -11,7 +11,10 @@ services:
       - PORT=8080
       - GIN_MODE=release
       - DB_PATH=/app/data/domain.db
-      - JWT_KEY=domain-manager-secret-key-2026
+      # IMPORTANT: set JWT_KEY to a strong random value (e.g. `openssl rand -hex 32`).
+      # If it is not set, a random key is generated on startup and all users are
+      # logged out every time the container restarts.
+      - JWT_KEY=${JWT_KEY:-}
       - WHOIS_API_URL=http://whois:3000
       - ICP_API_URL=http://icp:16181
     depends_on:

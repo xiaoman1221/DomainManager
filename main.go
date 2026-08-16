@@ -48,7 +48,26 @@ func main() {
 			return
 		}
 		ext := filepath.Ext(name)
-		c.Data(http.StatusOK, mime.TypeByExtension(ext), data)
+		contentType := mime.TypeByExtension(ext)
+		if contentType == "" {
+			contentType = map[string]string{
+				".html":  "text/html; charset=utf-8",
+				".js":    "text/javascript; charset=utf-8",
+				".css":   "text/css; charset=utf-8",
+				".svg":   "image/svg+xml",
+				".json":  "application/json",
+				".map":   "application/json",
+				".png":   "image/png",
+				".ico":   "image/x-icon",
+				".woff":  "font/woff",
+				".woff2": "font/woff2",
+				".ttf":   "font/ttf",
+			}[ext]
+		}
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		c.Data(http.StatusOK, contentType, data)
 	}
 
 	r.NoRoute(func(c *gin.Context) {

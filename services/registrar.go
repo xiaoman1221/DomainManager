@@ -476,31 +476,37 @@ func parseNamecheapResponse(body []byte, _ string) ([]models.Domain, error) {
 		return nil, fmt.Errorf("namecheap API returned an error")
 	}
 
-	if !strings.Contains(bodyStr, "DomainGetListResult") {
+	// Only look inside the domain result block to avoid matching unrelated
+	// attributes such as UserName.
+	block := extractXMLBlock(bodyStr, "DomainGetListResult")
+	if block == "" {
 		return nil, fmt.Errorf("unexpected namecheap response: missing DomainGetListResult")
 	}
 
 	var domains []models.Domain
-	start := strings.Index(bodyStr, "Name=\"")
-	for start != -1 {
-		start += 6
-		end := strings.Index(bodyStr[start:], "\"")
+	pos := 0
+	for {
+		start := strings.Index(block[pos:], "<Domain")
+		if start == -1 {
+			break
+		}
+		start += pos
+		end := strings.Index(block[start:], ">")
 		if end == -1 {
 			break
 		}
-		name := bodyStr[start : start+end]
-		if strings.Contains(name, ".") {
-			domains = append(domains, models.Domain{
-				Name:      name,
-				Registrar: "Namecheap",
-				Status:    "active",
-			})
+		tag := block[start : start+end]
+		pos = start + end
+
+		name := extractXMLAttr(tag, "Name")
+		if name == "" || !strings.Contains(name, ".") {
+			continue
 		}
-		next := strings.Index(bodyStr[start+end:], "Name=\"")
-		if next == -1 {
-			break
-		}
-		start = start + end + next
+		domains = append(domains, models.Domain{
+			Name:      name,
+			Registrar: "Namecheap",
+			Status:    "active",
+		})
 	}
 
 	return domains, nil
@@ -750,4 +756,20 @@ func extractXMLBlock(xml, tag string) string {
 		return ""
 	}
 	return xml[startIdx : startIdx+endIdx]
+}
+
+// extractXMLAttr returns the value of a quoted attribute (name="value") inside an
+// XML open tag, or an empty string when absent.
+func extractXMLAttr(tag, attr string) string {
+	marker := attr + "="
+	idx := strings.Index(tag, marker)
+	if idx == -1 {
+		return ""
+	}
+	start := idx + len(marker)
+	end := strings.Index(tag[start:], "\"")
+	if end == -1 {
+		return ""
+	}
+	return strings.TrimSpace(tag[start : start+end])
 }

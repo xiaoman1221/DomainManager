@@ -8,7 +8,8 @@ import (
 
 type Registrar struct {
 	ID          uint           `json:"id" gorm:"primaryKey"`
-	Name        string         `json:"name" gorm:"uniqueIndex;size:128;not null"`
+	UserID      uint           `json:"user_id" gorm:"index;uniqueIndex:idx_registrar_owner_name;not null"`
+	Name        string         `json:"name" gorm:"uniqueIndex:idx_registrar_owner_name;size:128;not null"`
 	Type        string         `json:"type" gorm:"size:32;not null"` // aliyun, tencent, cloudflare, godaddy, namecheap, digitalplat, etc.
 	APIEndpoint string         `json:"api_endpoint" gorm:"size:256"`
 	APIKey      string         `json:"api_key" gorm:"size:256"`

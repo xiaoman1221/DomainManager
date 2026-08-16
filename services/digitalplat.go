@@ -31,6 +31,14 @@ var digitalPlatSuffixes = []string{
 	"qd.je",
 }
 
+// DigitalPlatSuffixes returns a copy of the DigitalPlat free-domain suffixes
+// so callers (including the frontend) stay in sync with the backend list.
+func DigitalPlatSuffixes() []string {
+	out := make([]string, len(digitalPlatSuffixes))
+	copy(out, digitalPlatSuffixes)
+	return out
+}
+
 // IsDigitalPlatDomain reports whether the domain ends with a DigitalPlat free
 // domain suffix.
 func IsDigitalPlatDomain(domain string) bool {

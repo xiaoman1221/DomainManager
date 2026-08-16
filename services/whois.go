@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -35,26 +36,26 @@ type whoisAPIResponse struct {
 	Status bool    `json:"status"`
 	Error  string  `json:"error,omitempty"`
 	Result *struct {
-		Domain               string   `json:"domain"`
-		Registrar            string   `json:"registrar"`
-		RegistrarURL         string   `json:"registrarURL"`
-		IANAID               string   `json:"ianaId"`
-		WhoisServer          string   `json:"whoisServer"`
-		UpdatedDate          string   `json:"updatedDate"`
-		CreationDate         string   `json:"creationDate"`
-		ExpirationDate       string   `json:"expirationDate"`
-		Status               []struct {
+		Domain         string `json:"domain"`
+		Registrar      string `json:"registrar"`
+		RegistrarURL   string `json:"registrarURL"`
+		IANAID         string `json:"ianaId"`
+		WhoisServer    string `json:"whoisServer"`
+		UpdatedDate    string `json:"updatedDate"`
+		CreationDate   string `json:"creationDate"`
+		ExpirationDate string `json:"expirationDate"`
+		Status         []struct {
 			Status string `json:"status"`
 			URL    string `json:"url"`
 		} `json:"status"`
-		NameServers           []string `json:"nameServers"`
-		RegistrantName        string   `json:"registrantName"`
-		RegistrantOrganization string `json:"registrantOrganization"`
-		RegistrantProvince    string   `json:"registrantProvince"`
-		RegistrantCountry     string   `json:"registrantCountry"`
-		RegistrantPhone       string   `json:"registrantPhone"`
-		RegistrantEmail       string   `json:"registrantEmail"`
-		RawWhoisContent       string   `json:"rawWhoisContent"`
+		NameServers            []string `json:"nameServers"`
+		RegistrantName         string   `json:"registrantName"`
+		RegistrantOrganization string   `json:"registrantOrganization"`
+		RegistrantProvince     string   `json:"registrantProvince"`
+		RegistrantCountry      string   `json:"registrantCountry"`
+		RegistrantPhone        string   `json:"registrantPhone"`
+		RegistrantEmail        string   `json:"registrantEmail"`
+		RawWhoisContent        string   `json:"rawWhoisContent"`
 	} `json:"result"`
 }
 
@@ -70,7 +71,7 @@ func QueryWhois(domain string) (*WhoisInfo, error) {
 	}
 	apiBase = strings.TrimRight(apiBase, "/")
 
-	apiURL := fmt.Sprintf("%s/api/lookup?query=%s", apiBase, domain)
+	apiURL := fmt.Sprintf("%s/api/lookup?query=%s", apiBase, url.QueryEscape(domain))
 
 	client := &http.Client{Timeout: 20 * time.Second}
 	resp, err := client.Get(apiURL)

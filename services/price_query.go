@@ -108,16 +108,14 @@ func queryAliyunRenewalPrice(domain string, registrar models.Registrar) (*Renewa
 		return &RenewalPriceResult{Domain: domain, Error: fmt.Sprintf("parse error: %s", string(body[:min(len(body), 200)]))}, nil
 	}
 
-	if result.Avail != 1 {
+	// CheckDomain returns Avail==1 when the domain is available for *registration*;
+	// for renewal of an owned domain that is not meaningful, so we rely on Price.
+	if result.Price == 0 {
 		reason := result.Reason
 		if reason == "" {
-			reason = "domain not available for renewal"
+			reason = "price data not available for this domain"
 		}
 		return &RenewalPriceResult{Domain: domain, Error: reason}, nil
-	}
-
-	if result.Price == 0 {
-		return &RenewalPriceResult{Domain: domain, Error: "price data not available for this domain"}, nil
 	}
 
 	price := float64(result.Price) / 100.0
@@ -223,8 +221,8 @@ func queryTencentRenewalPrice(domain string, registrar models.Registrar) (*Renew
 
 	var result struct {
 		Response struct {
-			RequestId  string `json:"RequestId"`
-			PriceList  []struct {
+			RequestId string `json:"RequestId"`
+			PriceList []struct {
 				Tld       string  `json:"Tld"`
 				Operation string  `json:"Operation"`
 				Price     float64 `json:"Price"`
@@ -241,12 +239,13 @@ func queryTencentRenewalPrice(domain string, registrar models.Registrar) (*Renew
 	dotIdx := strings.LastIndex(domain, ".")
 	domainTLD := ""
 	if dotIdx != -1 {
-		domainTLD = domain[dotIdx:]
+		domainTLD = strings.TrimPrefix(domain[dotIdx:], ".")
 	}
 
 	for _, p := range result.Response.PriceList {
 		if p.Operation == "renew" && p.Year == 1 {
-			if domainTLD != "" && p.Tld != domainTLD {
+			// Accept either "com" or ".com" form returned by the API.
+			if domainTLD != "" && p.Tld != domainTLD && p.Tld != "."+domainTLD {
 				continue
 			}
 			price := p.RealPrice
