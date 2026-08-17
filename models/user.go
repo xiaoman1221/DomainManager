@@ -8,15 +8,19 @@ import (
 )
 
 type User struct {
-	ID        uint           `json:"id" gorm:"primaryKey"`
-	Username  string         `json:"username" gorm:"uniqueIndex;size:64;not null"`
-	Email     string         `json:"email" gorm:"uniqueIndex;size:128;not null"`
-	Password  string         `json:"-" gorm:"not null"`
-	Nickname  string         `json:"nickname" gorm:"size:64"`
-	Role      string         `json:"role" gorm:"size:32;default:'user'"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+	ID            uint           `json:"id" gorm:"primaryKey"`
+	Username      string         `json:"username" gorm:"uniqueIndex;size:64;not null"`
+	Email         string         `json:"email" gorm:"uniqueIndex;size:128;not null"`
+	Password      string         `json:"-" gorm:"not null"`
+	Nickname      string         `json:"nickname" gorm:"size:64"`
+	RoleGroup     string         `json:"role_group" gorm:"column:role_group;size:32;default:'user'"` // 角色组: admin / user
+	UserGroup     string         `json:"user_group" gorm:"column:user_group;size:64;default:''"`     // 用户组标记
+	OauthProvider string         `json:"oauth_provider" gorm:"size:32;index"`
+	OauthOpenID   string         `json:"oauth_openid" gorm:"column:oauth_openid;size:128;index"`
+	OauthAvatar   string         `json:"oauth_avatar" gorm:"size:512"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
+	DeletedAt     gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 type RegisterRequest struct {

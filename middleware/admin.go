@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AdminRequired ensures the authenticated user has the admin role.
+// AdminRequired ensures the authenticated user belongs to the admin role group.
 // Must be used after AuthRequired so that user_id is present.
 func AdminRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -27,7 +27,7 @@ func AdminRequired() gin.HandlerFunc {
 			return
 		}
 
-		if user.Role != "admin" {
+		if user.RoleGroup != "admin" {
 			c.JSON(http.StatusForbidden, gin.H{"error": "admin permission required"})
 			c.Abort()
 			return

@@ -212,14 +212,15 @@ func SyncCertimateCertificates(c *gin.Context) {
 func GetCertimateConfig(c *gin.Context) {
 	var setting models.SystemSetting
 	if err := database.DB.Where("`key` = ?", "certimate_config").First(&setting).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"url": "", "token": "", "configured": false})
+		c.JSON(http.StatusOK, gin.H{"url": "", "username": "", "configured": false})
 		return
 	}
 
 	var config models.CertimateConfig
 	json.Unmarshal([]byte(setting.Value), &config)
 
-	c.JSON(http.StatusOK, gin.H{"url": config.URL, "token": config.Token, "configured": true})
+	// The password is write-only; it is never echoed back to the client.
+	c.JSON(http.StatusOK, gin.H{"url": config.URL, "username": config.Username, "configured": true})
 }
 
 func SaveCertimateConfig(c *gin.Context) {
@@ -229,7 +230,7 @@ func SaveCertimateConfig(c *gin.Context) {
 		return
 	}
 
-	config := models.CertimateConfig{URL: req.URL, Token: req.Token}
+	config := models.CertimateConfig{URL: req.URL, Username: req.Username, Password: req.Password}
 	jsonData, _ := json.Marshal(config)
 
 	var setting models.SystemSetting

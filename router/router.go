@@ -25,11 +25,25 @@ func Setup() *gin.Engine {
 
 	api := r.Group("/api")
 	{
+		// Public site-wide configuration (footer / SNS links) for the login page.
+		api.GET("/site/config", handlers.GetSiteConfig)
+
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", middleware.RateLimitAuth(), handlers.Register)
 			auth.POST("/login", middleware.RateLimitAuth(), handlers.Login)
 			auth.GET("/profile", middleware.AuthRequired(), handlers.GetProfile)
+
+			// OauthGo third-party login (https://o.1v.fit/docs)
+			auth.GET("/oauth/providers", handlers.OauthGoProviders)
+			auth.POST("/oauth/login", middleware.RateLimitAuth(), handlers.OauthGoLogin)
+			auth.POST("/oauth/ticket", middleware.RateLimitAuth(), handlers.OauthGoRedeem)
+			auth.GET("/oauth/callback", handlers.OauthGoCallback)
+			// Third-party account binding (profile page)
+			auth.GET("/oauth/bindings", middleware.AuthRequired(), handlers.OauthGoBindings)
+			auth.POST("/oauth/bind", middleware.AuthRequired(), handlers.OauthGoBindStart)
+			auth.GET("/oauth/bind/callback/:token", handlers.OauthGoBindCallback)
+			auth.DELETE("/oauth/bind/:provider", middleware.AuthRequired(), handlers.OauthGoUnbind)
 		}
 
 		domains := api.Group("/domains", middleware.AuthRequired())
@@ -110,12 +124,15 @@ func Setup() *gin.Engine {
 		{
 			// System-wide settings and user management are admin-only.
 			settings.GET("", middleware.AdminRequired(), handlers.GetSystemSettings)
-			settings.PUT("", middleware.AdminRequired(), handlers.UpdateSystemSetting)
+			settings.PUT("", middleware.AdminRequired(), handlers.UpdateSystemSettings)
 			settings.GET("/info", middleware.AdminRequired(), handlers.GetSystemInfo)
 			settings.PUT("/profile", handlers.UpdateUserProfile)
 			settings.PUT("/password", handlers.ChangePassword)
 			settings.GET("/users", middleware.AdminRequired(), handlers.ListAllUsers)
-			settings.PUT("/users/:id/role", middleware.AdminRequired(), handlers.UpdateUserRole)
+			settings.PUT("/users/:id", middleware.AdminRequired(), handlers.UpdateUser)
+			settings.DELETE("/users/:id", middleware.AdminRequired(), handlers.DeleteUser)
+			settings.PUT("/users/:id/role-group", middleware.AdminRequired(), handlers.UpdateUserRoleGroup)
+			settings.PUT("/users/:id/user-group", middleware.AdminRequired(), handlers.UpdateUserGroup)
 			settings.PUT("/users/:id/password", middleware.AdminRequired(), handlers.AdminUpdateUserPassword)
 		}
 	}

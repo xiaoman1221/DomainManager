@@ -1,34 +1,29 @@
-import { useEffect, useState } from 'react'
-import { Button, Form, Input, Table, Select, Modal, Tag, Descriptions, Divider, Empty, Popconfirm } from 'antd'
-import { SaveOutlined, KeyOutlined } from '@ant-design/icons'
+import { useCallback, useEffect, useState } from 'react'
+import { Button, Form, Input, Tag, Space, Divider, Popconfirm, Avatar } from 'antd'
+import { SaveOutlined, KeyOutlined, LinkOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import AppAvatar from '../components/AppAvatar'
 import * as api from '../api/settings'
+import * as authApi from '../api/auth'
+import { providerMark, providerLabel } from '../utils/oauth'
 import { notify } from '../utils/toast'
 import PageHead from '../components/PageHead'
 import { fmtDateTime } from '../utils/format'
-import { useIsMobile } from '../utils/useIsMobile'
 
 export default function Profile() {
   const { user, logout, fetchProfile } = useAuth()
   const navigate = useNavigate()
-  const isAdmin = user?.role === 'admin'
-  const isMobile = useIsMobile()
+  const isAdmin = user?.role_group === 'admin'
 
   const [profileForm] = Form.useForm()
   const [pwdForm] = Form.useForm()
   const [savingProfile, setSavingProfile] = useState(false)
   const [savingPwd, setSavingPwd] = useState(false)
 
-  const [users, setUsers] = useState([])
-  const [usersLoading, setUsersLoading] = useState(false)
-  const [sysInfo, setSysInfo] = useState(null)
-
-  const [resetOpen, setResetOpen] = useState(false)
-  const [resetUser, setResetUser] = useState(null)
-  const [resetForm] = Form.useForm()
-  const [resetting, setResetting] = useState(false)
+  const [bindings, setBindings] = useState([])
+  const [providers, setProviders] = useState([])
+  const [bindingType, setBindingType] = useState(null)
 
   useEffect(() => {
     if (user) {
@@ -36,23 +31,70 @@ export default function Profile() {
     }
   }, [user, profileForm])
 
-  const fetchUsers = async () => {
-    setUsersLoading(true)
+  // OauthGo binding: fetch current bindings + available providers, and surface
+  // the ?oauth_bind= success/duplicate/error result from the bind callback.
+  const fetchBindings = useCallback(async () => {
     try {
-      const res = await api.getUsers()
-      setUsers(res.data || [])
+      const res = await authApi.getOauthBindings()
+      setBindings(res.data || [])
+    } catch {
+      /* interceptor */
+    }
+  }, [])
+
+  const fetchProviders = useCallback(async () => {
+    try {
+      const res = await authApi.getOauthProviders()
+      setProviders(res?.enabled ? res.providers || [] : [])
+    } catch {
+      /* interceptor */
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchBindings()
+    fetchProviders()
+  }, [fetchBindings, fetchProviders])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const status = params.get('oauth_bind')
+    if (status) {
+      window.history.replaceState({}, '', window.location.pathname)
+      if (status === 'success') notify('success', '第三方账号绑定成功')
+      else if (status === 'duplicate') notify('error', '该第三方账号已被其他用户绑定')
+      else notify('error', '第三方账号绑定失败，请重试')
+    }
+  }, [])
+
+  const handleBind = async (type) => {
+    setBindingType(type)
+    try {
+      const { url } = await authApi.oauthBind(type)
+      if (url) {
+        window.location.href = url
+        return
+      }
+      notify('error', '绑定失败，请重试')
+    } catch {
+      /* interceptor */
     } finally {
-      setUsersLoading(false)
+      setBindingType(null)
     }
   }
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchUsers()
-      api.getSystemInfo().then(setSysInfo).catch(() => {})
+  const handleUnbind = async (provider) => {
+    try {
+      await authApi.oauthUnbind(provider)
+      notify('success', '已解绑')
+      fetchBindings()
+      fetchProfile()
+    } catch {
+      /* interceptor */
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin])
+  }
+
+  const bindableProviders = providers.filter((p) => !bindings.some((b) => b.provider === p.name))
 
   const handleSaveProfile = async () => {
     const values = await profileForm.validateFields()
@@ -82,81 +124,18 @@ export default function Profile() {
     }
   }
 
-  const handleRoleChange = async (row, role) => {
-    try {
-      await api.updateUserRole(row.id, { role })
-      notify('success', '角色已更新')
-      fetchUsers()
-    } catch {
-      /* interceptor */
-    }
-  }
-
-  const openReset = (row) => {
-    setResetUser(row)
-    resetForm.resetFields()
-    setResetOpen(true)
-  }
-
-  const handleReset = async () => {
-    const values = await resetForm.validateFields()
-    setResetting(true)
-    try {
-      await api.adminUpdatePassword(resetUser.id, { password: values.password })
-      notify('success', '密码已重置')
-      setResetOpen(false)
-    } catch {
-      /* interceptor */
-    } finally {
-      setResetting(false)
-    }
-  }
-
-  const userColumns = [
-    { title: 'ID', dataIndex: 'id', key: 'id', width: 60, responsive: ['md'] },
-    { title: '用户名', dataIndex: 'username', key: 'username', width: 140, className: 'tbl-first', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
-    { title: '邮箱', dataIndex: 'email', key: 'email', width: 220, responsive: ['md'] },
-    { title: '昵称', dataIndex: 'nickname', key: 'nickname', width: 120, responsive: ['md'], render: (v) => v || '-' },
-    {
-      title: '角色',
-      dataIndex: 'role',
-      key: 'role',
-      width: 130,
-      render: (v, r) => (
-        <Select
-          size="small"
-          value={v}
-          disabled={r.username === 'admin'}
-          onChange={(nv) => handleRoleChange(r, nv)}
-          options={[{ value: 'admin', label: '管理员' }, { value: 'user', label: '普通用户' }]}
-          style={{ width: 110 }}
-        />
-      ),
-    },
-    { title: '注册时间', dataIndex: 'created_at', key: 'created_at', width: 170, responsive: ['md'], render: fmtDateTime },
-    {
-      title: '操作',
-      key: 'actions',
-      width: 110,
-      render: (_, r) => (
-        <Popconfirm title={`确定重置 ${r.username} 的密码？`} onConfirm={() => openReset(r)}>
-          <Button type="text" size="small" icon={<KeyOutlined />}>重置密码</Button>
-        </Popconfirm>
-      ),
-    },
-  ]
-
   return (
     <div className="page" style={{ maxWidth: 1000 }}>
       <PageHead title="个人设置" sub="头像支持 QQ 邮箱自动识别与 Gravatar" />
 
       <div className="panel mb-16">
         <div style={{ display: 'flex', gap: 24, padding: 24 }}>
-          <AppAvatar email={user?.email} name={user?.nickname || user?.username} size={72} />
+          <AppAvatar email={user?.email} name={user?.nickname || user?.username} avatar={user?.oauth_avatar} size={72} />
           <div style={{ flex: 1 }}>
             <h3 style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 500, letterSpacing: '-0.01em' }}>{user?.nickname || user?.username}</h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
               <Tag color={isAdmin ? 'red' : 'default'} style={{ borderRadius: 4 }}>{isAdmin ? '管理员' : '普通用户'}</Tag>
+              {user?.user_group ? <Tag style={{ borderRadius: 4 }}>{user.user_group}</Tag> : null}
               <span className="muted" style={{ fontSize: 13 }}>{user?.email}</span>
             </div>
             <div className="faint" style={{ fontSize: 12 }}>注册于 {fmtDateTime(user?.created_at)}</div>
@@ -209,41 +188,62 @@ export default function Profile() {
         </div>
       </div>
 
+      <div className="panel mt-16">
+        <div className="panel-head"><h3 className="panel-title">第三方登录</h3></div>
+        <div className="panel-body">
+          <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: '0 0 16px' }}>
+            绑定后可直接使用第三方账号登录（通过 OauthGo）。同一账号可绑定多个第三方渠道。
+          </p>
+
+          {bindings.length > 0 ? (
+            <div style={{ display: 'grid', gap: 8, maxWidth: 520 }}>
+              {bindings.map((b) => (
+                <div key={b.id} className="oauth-binding-item">
+                  <Avatar size={34} src={b.avatar || undefined} style={{ background: '#e7e5e4', color: '#1c1917', fontWeight: 600 }}>
+                    {(b.nickname || b.provider || '?').charAt(0).toUpperCase()}
+                  </Avatar>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 500, fontSize: 13 }}>{providerLabel(b.provider, b.provider)}</div>
+                    <div className="faint" style={{ fontSize: 12 }}>{b.nickname || b.openid}</div>
+                  </div>
+                  <Popconfirm title={`确定解绑 ${providerLabel(b.provider, b.provider)}？`} onConfirm={() => handleUnbind(b.provider)}>
+                    <Button size="small" danger>解绑</Button>
+                  </Popconfirm>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="faint" style={{ fontSize: 13 }}>尚未绑定第三方账号</div>
+          )}
+
+          {bindableProviders.length > 0 && (
+            <>
+              <Divider style={{ margin: '20px 0 16px' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span className="muted" style={{ fontSize: 13 }}>绑定新账号：</span>
+                {bindableProviders.map((p) => (
+                  <Button
+                    key={p.name}
+                    size="small"
+                    icon={<LinkOutlined />}
+                    loading={bindingType === p.name}
+                    disabled={!!bindingType && bindingType !== p.name}
+                    onClick={() => handleBind(p.name)}
+                  >
+                    <span className="oauth-provider-mark" style={{ width: 16, height: 16, fontSize: 10, marginRight: 4 }}>{providerMark(p)}</span>
+                    {p.display_name || p.name}
+                  </Button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
       <div className="panel mt-16" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px' }}>
         <span className="muted" style={{ fontSize: 13 }}>退出当前账号</span>
         <Button danger onClick={() => { logout(); navigate('/login') }}>退出登录</Button>
       </div>
-
-      {isAdmin && (
-        <div className="panel mt-16">
-          <div className="panel-head"><h3 className="panel-title">系统管理</h3></div>
-          <div style={{ padding: 20 }}>
-            <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>用户管理</h4>
-            <Table rowKey="id" columns={userColumns} dataSource={users} loading={usersLoading} size="middle" pagination={false} scroll={{ x: 900 }} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无用户" /> }} />
-
-            <Divider />
-
-            <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>系统信息</h4>
-            {sysInfo ? (
-              <Descriptions column={isMobile ? 1 : 3} size="small" bordered>
-                <Descriptions.Item label="域名总数">{sysInfo.domains}</Descriptions.Item>
-                <Descriptions.Item label="证书总数">{sysInfo.certificates}</Descriptions.Item>
-                <Descriptions.Item label="注册商数量">{sysInfo.registrars}</Descriptions.Item>
-                <Descriptions.Item label="用户数量">{sysInfo.users}</Descriptions.Item>
-                <Descriptions.Item label="系统版本">{sysInfo.version}</Descriptions.Item>
-              </Descriptions>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      <Modal title={`重置 ${resetUser?.username || ''} 的密码`} open={resetOpen} onOk={handleReset} onCancel={() => setResetOpen(false)} confirmLoading={resetting} width={420} destroyOnClose>
-        <Form form={resetForm} layout="vertical" requiredMark={false} style={{ marginTop: 16 }}>
-          <Form.Item name="password" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 6, message: '密码至少 6 位' }]}>
-            <Input.Password autoComplete="new-password" />
-          </Form.Item>
-        </Form>
-      </Modal>
     </div>
   )
 }

@@ -10,7 +10,7 @@ import { useIsMobile } from '../utils/useIsMobile'
 
 export default function Certificates() {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = user?.role_group === 'admin'
   const isMobile = useIsMobile()
 
   const [certs, setCerts] = useState([])
@@ -133,9 +133,9 @@ export default function Certificates() {
   const openConfig = async () => {
     try {
       const res = await api.getCertimateConfig()
-      configForm.setFieldsValue({ url: res.url || '', token: res.token || '' })
+      configForm.setFieldsValue({ url: res.url || '', username: res.username || '', password: '' })
     } catch {
-      configForm.setFieldsValue({ url: '', token: '' })
+      configForm.setFieldsValue({ url: '', username: '', password: '' })
     }
     setConfigOpen(true)
   }
@@ -262,16 +262,20 @@ export default function Certificates() {
       </Modal>
 
       <Modal title="Certimate 配置" open={configOpen} onOk={handleSaveConfig} onCancel={() => setConfigOpen(false)} confirmLoading={savingConfig} width={480} destroyOnClose>
-        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="Certimate 使用 PocketBase 兼容 API，Token 为 superuser token。" />
+        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="填写 Certimate 后台登录账号密码，系统会自动换取 API Token（密码仅保存用于登录，不会回显）。" />
         <Form form={configForm} layout="vertical" requiredMark={false}>
           <Form.Item name="url" label="API 地址" rules={[{ required: true, message: '请输入 API 地址' }]}>
             <Input placeholder="http://127.0.0.1:8090" />
           </Form.Item>
-          <Form.Item name="token" label="Token" rules={[{ required: true, message: '请输入 Token' }]}>
-            <Input.Password placeholder="PocketBase superuser token" />
+          <Form.Item name="username" label="登录账号" rules={[{ required: true, message: '请输入登录账号' }]}>
+            <Input placeholder="Certimate 后台登录账号" autoComplete="off" />
+          </Form.Item>
+          <Form.Item name="password" label="登录密码" rules={[{ required: true, message: '请输入登录密码' }]}>
+            <Input.Password placeholder="Certimate 后台登录密码" autoComplete="new-password" />
           </Form.Item>
         </Form>
       </Modal>
     </div>
   )
 }
+

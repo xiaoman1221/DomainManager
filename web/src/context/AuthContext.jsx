@@ -13,21 +13,17 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('token')
   }, [])
 
-  const login = async (form) => {
-    const res = await authApi.login(form)
+  // Stores an AuthResponse {token, user} as the current session.
+  const applyAuth = useCallback((res) => {
     setToken(res.token)
     setUser(res.user)
     localStorage.setItem('token', res.token)
     return res
-  }
+  }, [])
 
-  const register = async (form) => {
-    const res = await authApi.register(form)
-    setToken(res.token)
-    setUser(res.user)
-    localStorage.setItem('token', res.token)
-    return res
-  }
+  const login = async (form) => applyAuth(await authApi.login(form))
+
+  const register = async (form) => applyAuth(await authApi.register(form))
 
   const fetchProfile = useCallback(async () => {
     if (!token) return
@@ -44,7 +40,7 @@ export function AuthProvider({ children }) {
   }, [token, fetchProfile])
 
   return (
-    <AuthContext.Provider value={{ token, user, login, register, logout, fetchProfile }}>
+    <AuthContext.Provider value={{ token, user, login, register, applyAuth, logout, fetchProfile }}>
       {children}
     </AuthContext.Provider>
   )

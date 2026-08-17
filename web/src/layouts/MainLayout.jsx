@@ -6,6 +6,8 @@ import {
   DollarOutlined,
   BankOutlined,
   SafetyCertificateOutlined,
+  SettingOutlined,
+  TeamOutlined,
   BellOutlined,
   UserOutlined,
   LogoutOutlined,
@@ -29,6 +31,8 @@ const NAV = [
   { key: '/certificates', label: '证书管理', icon: <SafetyCertificateOutlined /> },
   { key: '/notifications', label: '通知管理', icon: <BellOutlined /> },
   { key: '/profile', label: '个人设置', icon: <UserOutlined /> },
+  { key: '/users', label: '用户管理', icon: <TeamOutlined />, adminOnly: true },
+  { key: '/settings', label: '系统管理', icon: <SettingOutlined />, adminOnly: true },
 ]
 
 export default function MainLayout() {
@@ -53,12 +57,12 @@ export default function MainLayout() {
 
   const menuItems = useMemo(
     () =>
-      NAV.map((n) => ({
+      NAV.filter((n) => !n.adminOnly || user?.role_group === 'admin').map((n) => ({
         key: n.key,
         icon: n.icon,
         label: n.label,
       })),
-    []
+    [user]
   )
 
   const userItems = [
@@ -162,3 +166,5 @@ export default function MainLayout() {
     </Layout>
   )
 }
+
+

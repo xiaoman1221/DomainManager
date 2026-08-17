@@ -1,9 +1,11 @@
 package services
 
 import (
+	"bytes"
 	"DomainManager/database"
 	"DomainManager/models"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +16,8 @@ import (
 
 type CertimateService struct {
 	BaseURL string
+	Username string
+	Password string
 	Token   string
 }
 
@@ -44,33 +48,110 @@ type CertimateCertRecord struct {
 func NewCertimateService(config models.CertimateConfig) *CertimateService {
 	return &CertimateService{
 		BaseURL: config.URL,
+		Username: config.Username,
+		Password: config.Password,
 		Token:   config.Token,
 	}
+}
+
+// certimateAuthResponse is the PocketBase superuser auth response.
+type certimateAuthResponse struct {
+	Token string `json:"token"`
+}
+
+// ensureToken returns a valid PocketBase superuser token. When no token is
+// cached it logs in with the configured username/password
+// (POST /api/collections/_superusers/auth-with-password).
+func (s *CertimateService) ensureToken() (string, error) {
+	if s.Token != "" {
+		return s.Token, nil
+	}
+	if s.Username == "" || s.Password == "" {
+		return "", errors.New("Certimate 未配置登录账号密码")
+	}
+
+	body, err := json.Marshal(map[string]string{
+		"identity": s.Username,
+		"password": s.Password,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to encode Certimate login: %w", err)
+	}
+
+	apiURL := strings.TrimRight(s.BaseURL, "/") + "/api/collections/_superusers/auth-with-password"
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Post(apiURL, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("failed to call Certimate login API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", fmt.Errorf("failed to read Certimate login response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Certimate login failed (status %d): %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+
+	var auth certimateAuthResponse
+	if err := json.Unmarshal(data, &auth); err != nil {
+		return "", fmt.Errorf("failed to parse Certimate login response: %w", err)
+	}
+	if auth.Token == "" {
+		return "", errors.New("Certimate login did not return a token")
+	}
+	s.Token = auth.Token
+	return s.Token, nil
+}
+
+// getJSON performs an authenticated GET and returns the response body. On a
+// 401 the cached token is dropped and the request is retried once after a fresh
+// login (the token may have expired since it was cached).
+func (s *CertimateService) getJSON(apiURL string) ([]byte, error) {
+	client := &http.Client{Timeout: 15 * time.Second}
+
+	for attempt := 0; attempt < 2; attempt++ {
+		token, err := s.ensureToken()
+		if err != nil {
+			return nil, err
+		}
+
+		req, err := http.NewRequest("GET", apiURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to call Certimate API: %w", err)
+		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+		resp.Body.Close()
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read response: %w", readErr)
+		}
+
+		if resp.StatusCode == http.StatusUnauthorized && attempt == 0 {
+			s.Token = "" // force re-authentication
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("Certimate API returned status %d: %s", resp.StatusCode, string(body))
+		}
+		return body, nil
+	}
+
+	return nil, errors.New("Certimate API authorization failed")
 }
 
 func (s *CertimateService) ListCertificates(page, perPage int) (*CertimateCertListResponse, error) {
 	apiURL := fmt.Sprintf("%s/api/collections/certificate/records?page=%d&perPage=%d", s.BaseURL, page, perPage)
 
-	req, err := http.NewRequest("GET", apiURL, nil)
+	body, err := s.getJSON(apiURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+s.Token)
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call Certimate API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Certimate API returned status %d: %s", resp.StatusCode, string(body))
+		return nil, err
 	}
 
 	var result CertimateCertListResponse
@@ -84,26 +165,9 @@ func (s *CertimateService) ListCertificates(page, perPage int) (*CertimateCertLi
 func (s *CertimateService) GetCertificate(certID string) (*CertimateCertRecord, error) {
 	apiURL := fmt.Sprintf("%s/api/collections/certificate/records/%s", s.BaseURL, url.PathEscape(certID))
 
-	req, err := http.NewRequest("GET", apiURL, nil)
+	body, err := s.getJSON(apiURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+s.Token)
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to call Certimate API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Certimate API returned status %d: %s", resp.StatusCode, string(body))
+		return nil, err
 	}
 
 	var result CertimateCertRecord

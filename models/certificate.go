@@ -57,11 +57,16 @@ type CertificateUpdateRequest struct {
 }
 
 type CertimateConfig struct {
-	URL   string `json:"url"`
-	Token string `json:"token"`
+	URL      string `json:"url"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	// Token is a runtime-only PocketBase superuser token. It is never persisted
+	// through the API; it is kept for reading legacy configs saved with a token.
+	Token string `json:"token,omitempty"`
 }
 
 type CertimateConfigRequest struct {
-	URL   string `json:"url" binding:"required"`
-	Token string `json:"token" binding:"required"`
+	URL      string `json:"url" binding:"required"`
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
 }

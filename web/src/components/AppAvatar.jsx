@@ -2,14 +2,16 @@ import { useState } from 'react'
 import { Avatar } from 'antd'
 import { resolveAvatar, avatarInitial } from '../utils/avatar'
 
-export default function AppAvatar({ email, name, size = 32 }) {
+export default function AppAvatar({ email, name, size = 32, avatar }) {
   const [failed, setFailed] = useState(false)
-  const resolved = failed ? null : resolveAvatar(email)
+  // An explicit avatar URL (e.g. third-party provider avatar) takes priority;
+  // otherwise fall back to QQ/Gravatar resolution by email.
+  const resolved = failed ? null : (avatar || resolveAvatar(email)?.url)
   const initial = avatarInitial(name, email)
   return (
     <Avatar
       size={size}
-      src={resolved?.url}
+      src={resolved}
       onError={() => {
         setFailed(true)
         return true

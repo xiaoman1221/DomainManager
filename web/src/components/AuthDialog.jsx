@@ -1,8 +1,14 @@
 import { Form, Input, Button } from 'antd'
 import { UserOutlined, LockOutlined, MailOutlined, ArrowRightOutlined } from '@ant-design/icons'
 
-export default function AuthDialog({ open, onClose, mode, onSwitchMode, loading, onFinish, form }) {
-  const isRegister = mode === 'register'
+import { providerMark } from '../utils/oauth'
+
+export default function AuthDialog({ open, onClose, mode, onSwitchMode, loading, onFinish, form, oauth, onOauthLogin, registrationEnabled = true }) {
+  // When registration is disabled the register form and the switch link are
+  // hidden; the dialog degrades to login-only.
+  const canRegister = registrationEnabled !== false
+  const isRegister = mode === 'register' && canRegister
+  const showOauth = !isRegister && oauth?.enabled && Array.isArray(oauth.providers) && oauth.providers.length > 0
 
   // The overlay stays mounted and is hidden with CSS instead of being removed
   // from the DOM. Removing the form nodes while password-manager extensions
@@ -62,11 +68,34 @@ export default function AuthDialog({ open, onClose, mode, onSwitchMode, loading,
             </Button>
           </Form.Item>
         </Form>
+
+        {showOauth && (
+          <div className="oauth-login">
+            <div className="auth-divider"><span>或使用第三方账号登录</span></div>
+            <div className="oauth-providers">
+              {oauth.providers.map((p) => (
+                <Button
+                  key={p.name}
+                  className="oauth-provider-btn"
+                  loading={oauth.loading === p.name}
+                  disabled={!!oauth.loading && oauth.loading !== p.name}
+                  onClick={() => onOauthLogin(p.name)}
+                >
+                  <span className="oauth-provider-mark">{providerMark(p)}</span>
+                  {p.display_name || p.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="auth-dialog-footer">
           {isRegister ? (
             <>已有账号？<a onClick={() => onSwitchMode('login')}>去登录</a></>
-          ) : (
+          ) : canRegister ? (
             <>还没有账号？<a onClick={() => onSwitchMode('register')}>立即注册</a></>
+          ) : (
+            <span className="muted" style={{ fontSize: 12 }}>当前未开放注册</span>
           )}
         </div>
       </div>

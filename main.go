@@ -22,6 +22,9 @@ var frontendFS embed.FS
 func main() {
 	config.Load()
 	database.Init()
+	// Load runtime settings (WHOIS/ICP/OauthGo etc.) from the database; env only
+	// provides initial defaults on first startup.
+	database.LoadSettingsIntoConfig()
 
 	r := router.Setup()
 
