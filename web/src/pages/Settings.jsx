@@ -53,6 +53,7 @@ export default function Settings() {
         UA_WHOIS_SERVER: d.UA_WHOIS_SERVER || 'whois.ua:43',
         ICP_API_URL: d.ICP_API_URL || '',
         DIGITALPLAT_RDAP_URL: d.DIGITALPLAT_RDAP_URL || '',
+        PROXY_URL: d.PROXY_URL || '',
       })
       const isRainbow = (d.OAUTH_PROVIDER || 'oauthgo') === 'rainbow'
       let oauthTypes = []
@@ -192,6 +193,7 @@ export default function Settings() {
           <Form.Item name="UA_WHOIS_SERVER" label="UA（乌克兰）WHOIS 服务器" extra="官方 dig.ua 的底层数据源，用于 *.pp.ua 等 .ua 域名查询"><Input placeholder="whois.ua:43" /></Form.Item>
           <Form.Item name="ICP_API_URL" label="ICP 备案 API 地址"><Input placeholder="http://127.0.0.1:16181" /></Form.Item>
           <Form.Item name="DIGITALPLAT_RDAP_URL" label="DigitalPlat RDAP 地址"><Input placeholder="https://rdap.digitalplat.org" /></Form.Item>
+          <Form.Item name="PROXY_URL" label="HTTP 代理地址" extra="留空则直连；格式 http://user:pass@host:port 或 https://host:port。注册商勾选「使用代理」后，其 API 请求经此代理发送"><Input placeholder="http://127.0.0.1:7890" autoComplete="off" /></Form.Item>
           {renderSaveBtn('basic')}
         </Form>
       ),

@@ -17,6 +17,7 @@ type Registrar struct {
 	APIExtra    string         `json:"api_extra" gorm:"size:512"` // JSON extra params
 	Enabled     bool           `json:"enabled" gorm:"default:true"`
 	SyncEnabled bool           `json:"sync_enabled" gorm:"default:false"`
+	UseProxy    bool           `json:"use_proxy" gorm:"default:false"` // route API calls through the system proxy (PROXY_URL)
 	LastSyncAt  *time.Time     `json:"last_sync_at"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
@@ -32,6 +33,7 @@ type RegistrarCreateRequest struct {
 	APIExtra    string `json:"api_extra"`
 	Enabled     bool   `json:"enabled"`
 	SyncEnabled bool   `json:"sync_enabled"`
+	UseProxy    bool   `json:"use_proxy"`
 }
 
 type RegistrarUpdateRequest struct {
@@ -43,6 +45,7 @@ type RegistrarUpdateRequest struct {
 	APIExtra    string `json:"api_extra"`
 	Enabled     *bool  `json:"enabled"`
 	SyncEnabled *bool  `json:"sync_enabled"`
+	UseProxy    *bool  `json:"use_proxy"`
 }
 
 type ImportDomainsRequest struct {

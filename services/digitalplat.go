@@ -82,9 +82,12 @@ func digitalPlatErrMessage(body []byte) string {
 	return "check the API key"
 }
 
-// digitalPlatClient builds an HTTP client with browser-like headers to avoid
-// Cloudflare bot challenges on DigitalPlat endpoints.
-func digitalPlatClient() *http.Client {
+// digitalPlatClient builds an HTTP client for DigitalPlat endpoints. When
+// useProxy is true the system proxy (PROXY_URL) is used for the request.
+func digitalPlatClient(useProxy bool) *http.Client {
+	if useProxy {
+		return NewRegistrarClient(models.Registrar{UseProxy: true}, 20*time.Second)
+	}
 	return &http.Client{Timeout: 20 * time.Second}
 }
 
@@ -115,7 +118,7 @@ func fetchDigitalPlatDomains(registrar models.Registrar) ([]models.Domain, error
 	var domains []models.Domain
 	for page := 1; page <= digitalPlatMaxPages; page++ {
 		apiURL := fmt.Sprintf("%s/domains?page=%d&per_page=%d", base, page, digitalPlatPageSize)
-		items, totalPages, err := digitalPlatFetchPage(apiURL, token)
+		items, totalPages, err := digitalPlatFetchPage(apiURL, token, registrar.UseProxy)
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +141,7 @@ func fetchDigitalPlatDomains(registrar models.Registrar) ([]models.Domain, error
 	return domains, nil
 }
 
-func digitalPlatFetchPage(apiURL, token string) ([]interface{}, int, error) {
+func digitalPlatFetchPage(apiURL, token string, useProxy bool) ([]interface{}, int, error) {
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create digitalplat request: %w", err)
@@ -146,7 +149,7 @@ func digitalPlatFetchPage(apiURL, token string) ([]interface{}, int, error) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	digitalPlatBrowserHeaders(req)
 
-	client := digitalPlatClient()
+	client := digitalPlatClient(useProxy)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("digitalplat API request failed: %w", err)
@@ -305,7 +308,7 @@ func QueryDigitalPlatWhois(domain string) (*WhoisInfo, error) {
 	digitalPlatBrowserHeaders(req)
 	req.Header.Set("Accept", "application/rdap+json, application/json, text/plain, */*")
 
-	client := digitalPlatClient()
+	client := digitalPlatClient(false)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("DigitalPlat RDAP request failed: %w", err)

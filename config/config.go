@@ -18,6 +18,7 @@ const (
 	SettingUaWhoisServer      = "UA_WHOIS_SERVER"
 	SettingICPAPIURL          = "ICP_API_URL"
 	SettingDigitalPlatRDAPURL = "DIGITALPLAT_RDAP_URL"
+	SettingProxyURL           = "PROXY_URL"
 
 	SettingOauthGoBaseURL      = "OAUTHGO_BASE_URL"
 	SettingOauthGoAppID        = "OAUTHGO_APP_ID"
@@ -69,6 +70,7 @@ var DBSettingKeys = []string{
 	SettingUaWhoisServer,
 	SettingICPAPIURL,
 	SettingDigitalPlatRDAPURL,
+	SettingProxyURL,
 
 	SettingOauthGoBaseURL,
 	SettingOauthGoAppID,
@@ -120,6 +122,7 @@ type Config struct {
 	UaWhoisServer      string
 	ICPAPIURL          string
 	DigitalPlatRDAPURL string
+	ProxyURL           string
 	OauthGoBaseURL     string
 	OauthGoAppID       string
 	OauthGoAppKey      string
@@ -143,7 +146,7 @@ var AppConfig *Config
 
 // Version is the application release version shown in the UI and in scheduled
 // system-information pushes.
-const Version = "1.0.8"
+const Version = "1.0.9"
 
 func Load() {
 	godotenv.Load()
@@ -156,6 +159,7 @@ func Load() {
 		UaWhoisServer:      getEnv("UA_WHOIS_SERVER", "whois.ua:43"),
 		ICPAPIURL:          getEnv("ICP_API_URL", "http://127.0.0.1:16181"),
 		DigitalPlatRDAPURL: getEnv("DIGITALPLAT_RDAP_URL", "https://rdap.digitalplat.org"),
+		ProxyURL:           getEnv("PROXY_URL", ""),
 		OauthGoBaseURL:     strings.TrimRight(getEnv("OAUTHGO_BASE_URL", ""), "/"),
 		OauthGoAppID:       os.Getenv("OAUTHGO_APP_ID"),
 		OauthGoAppKey:      os.Getenv("OAUTHGO_APP_KEY"),
@@ -244,6 +248,9 @@ func ApplyDBSettings(values map[string]string) {
 	if v, ok := values[SettingDigitalPlatRDAPURL]; ok {
 		AppConfig.DigitalPlatRDAPURL = v
 	}
+	if v, ok := values[SettingProxyURL]; ok {
+		AppConfig.ProxyURL = v
+	}
 	if v, ok := values[SettingOauthGoBaseURL]; ok {
 		AppConfig.OauthGoBaseURL = strings.TrimRight(v, "/")
 	}
@@ -300,6 +307,8 @@ func DefaultDBSettingValue(key string) string {
 		return AppConfig.ICPAPIURL
 	case SettingDigitalPlatRDAPURL:
 		return AppConfig.DigitalPlatRDAPURL
+	case SettingProxyURL:
+		return AppConfig.ProxyURL
 	case SettingOauthGoBaseURL:
 		return AppConfig.OauthGoBaseURL
 	case SettingOauthGoAppID:

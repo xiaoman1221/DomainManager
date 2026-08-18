@@ -64,7 +64,7 @@ func fetchAliyunDomains(registrar models.Registrar, baseURL string) ([]models.Do
 		return nil, fmt.Errorf("aliyun API key/secret not configured")
 	}
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := NewRegistrarClient(registrar, 15*time.Second)
 	const pageSize = 100
 	var all []models.Domain
 	total := 0
@@ -184,7 +184,7 @@ func fetchTencentDomains(registrar models.Registrar, host string) ([]models.Doma
 	action := "DescribeDomainNameList"
 	version := "2018-08-08"
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := NewRegistrarClient(registrar, 15*time.Second)
 	const limit = 100
 	var all []models.Domain
 	total := 0
@@ -317,7 +317,7 @@ func fetchCloudflareDomains(registrar models.Registrar) ([]models.Domain, error)
 		return nil, fmt.Errorf("cloudflare email/global API key not configured")
 	}
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := NewRegistrarClient(registrar, 15*time.Second)
 	var all []models.Domain
 	page := 1
 	for {
@@ -391,7 +391,7 @@ func fetchGoDaddyDomains(registrar models.Registrar) ([]models.Domain, error) {
 		return nil, fmt.Errorf("godaddy API key/secret not configured")
 	}
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := NewRegistrarClient(registrar, 15*time.Second)
 	const limit = 100
 	var all []models.Domain
 	offset := 0
@@ -461,7 +461,7 @@ func fetchNamecheapDomains(registrar models.Registrar) ([]models.Domain, error) 
 		return nil, fmt.Errorf("namecheap API credentials not configured")
 	}
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := NewRegistrarClient(registrar, 15*time.Second)
 	const pageSize = 100
 	var all []models.Domain
 	total := 0
@@ -590,7 +590,7 @@ func fetchPorkbunDomains(registrar models.Registrar) ([]models.Domain, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := NewRegistrarClient(registrar, 15*time.Second)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("porkbun API request failed: %w", err)
@@ -661,7 +661,7 @@ func fetchHuaweiDomains(registrar models.Registrar) ([]models.Domain, error) {
 	}
 	host := u.Host
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := NewRegistrarClient(registrar, 15*time.Second)
 	const limit = 100
 	var all []models.Domain
 	total := 0
@@ -803,7 +803,7 @@ func fetchRoute53Domains(registrar models.Registrar) ([]models.Domain, error) {
 	req.Header.Set("X-Amz-Content-Sha256", payloadHash)
 	req.Header.Set("Authorization", authorization)
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := NewRegistrarClient(registrar, 15*time.Second)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("route53 API request failed: %w", err)
@@ -900,7 +900,8 @@ func fetchDynadotDomains(registrar models.Registrar) ([]models.Domain, error) {
 	// Dynadot listDomains uses Legacy XML API v3 — no HMAC signing needed
 	apiURL := "https://api.dynadot.com/api3.xml?key=" + url.QueryEscape(apiKey) + "&command=list_domain"
 
-	resp, err := http.Get(apiURL)
+	client := NewRegistrarClient(registrar, 15*time.Second)
+	resp, err := client.Get(apiURL)
 	if err != nil {
 		return nil, fmt.Errorf("dynadot API request failed: %w", err)
 	}
@@ -991,7 +992,8 @@ func fetchNameSiloDomains(registrar models.Registrar) ([]models.Domain, error) {
 	}
 
 	apiURL := fmt.Sprintf("https://api.namesilo.com/api/listDomains?version=1&type=xml&key=%s", apiKey)
-	resp, err := http.Get(apiURL)
+	client := NewRegistrarClient(registrar, 15*time.Second)
+	resp, err := client.Get(apiURL)
 	if err != nil {
 		return nil, fmt.Errorf("namesilo API request failed: %w", err)
 	}

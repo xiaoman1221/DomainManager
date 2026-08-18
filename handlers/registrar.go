@@ -56,6 +56,7 @@ func CreateRegistrar(c *gin.Context) {
 		APIExtra:    req.APIExtra,
 		Enabled:     req.Enabled,
 		SyncEnabled: req.SyncEnabled,
+		UseProxy:    req.UseProxy,
 	}
 
 	if err := database.DB.Create(&registrar).Error; err != nil {
@@ -105,6 +106,9 @@ func UpdateRegistrar(c *gin.Context) {
 	}
 	if req.SyncEnabled != nil {
 		updates["sync_enabled"] = *req.SyncEnabled
+	}
+	if req.UseProxy != nil {
+		updates["use_proxy"] = *req.UseProxy
 	}
 
 	if err := database.DB.Model(&registrar).Updates(updates).Error; err != nil {

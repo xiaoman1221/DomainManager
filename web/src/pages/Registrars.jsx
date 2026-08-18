@@ -103,6 +103,7 @@ export default function Registrars() {
         api_extra: row.api_extra || '',
         enabled: row.enabled,
         sync_enabled: row.sync_enabled,
+        use_proxy: row.use_proxy || false,
       })
     } else {
       form.resetFields()
@@ -302,6 +303,9 @@ export default function Registrars() {
               <Switch />
             </Form.Item>
             <Form.Item name="sync_enabled" label="自动同步" valuePropName="checked">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="use_proxy" label="使用代理" valuePropName="checked" extra="开启后该注册商的 API 请求走系统设置的 HTTP 代理（PROXY_URL）">
               <Switch />
             </Form.Item>
           </div>
