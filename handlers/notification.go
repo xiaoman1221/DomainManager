@@ -1,11 +1,9 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
-	"DomainManager/config"
 	"DomainManager/database"
 	"DomainManager/models"
 	"DomainManager/services"
@@ -124,7 +122,7 @@ func TestNotificationChannel(c *gin.Context) {
 	}
 
 	svc := services.NewNotificationService()
-	err := svc.SendByType(channel.Type, applyGlobalSMTPDefaults(channel.Type, channel.Config), req.Title, req.Content)
+	err := svc.SendByType(channel.Type, services.ApplyGlobalSMTPDefaults(channel.Type, channel.Config), req.Title, req.Content)
 
 	log := models.NotificationLog{
 		ChannelID: channel.ID,
@@ -229,7 +227,7 @@ func SendDomainExpiryNotifications(c *gin.Context) {
 	svc := services.NewNotificationService()
 	sent := 0
 	for _, ch := range channels {
-		if err := svc.SendByType(ch.Type, applyGlobalSMTPDefaults(ch.Type, ch.Config), title, content); err != nil {
+		if err := svc.SendByType(ch.Type, services.ApplyGlobalSMTPDefaults(ch.Type, ch.Config), title, content); err != nil {
 			log := models.NotificationLog{
 				ChannelID: ch.ID,
 				Title:     title,
@@ -251,41 +249,4 @@ func SendDomainExpiryNotifications(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "notifications sent", "sent": sent, "total": len(channels)})
-}
-
-// applyGlobalSMTPDefaults merges the system-wide SMTP settings (configured in
-// 系统设置 -> SMTP) into an email channel config when the channel does not
-// specify its own SMTP server.
-func applyGlobalSMTPDefaults(channelType, configStr string) string {
-	if channelType != "email" {
-		return configStr
-	}
-	var cfg services.EmailConfig
-	if err := json.Unmarshal([]byte(configStr), &cfg); err != nil {
-		return configStr
-	}
-	if cfg.SMTPHost == "" {
-		cfg.SMTPHost = config.GetSetting(config.SettingSMTPHost)
-	}
-	if cfg.SMTPPort == "" {
-		cfg.SMTPPort = config.GetSetting(config.SettingSMTPPort)
-	}
-	if cfg.Username == "" {
-		cfg.Username = config.GetSetting(config.SettingSMTPUsername)
-	}
-	if cfg.Password == "" {
-		cfg.Password = config.GetSetting(config.SettingSMTPPassword)
-	}
-	if cfg.From == "" {
-		cfg.From = config.GetSetting(config.SettingSMTPFrom)
-	}
-	if !cfg.UseTLS {
-		enc := config.GetSetting(config.SettingSMTPEncryption)
-		cfg.UseTLS = enc == "ssl" || enc == "tls"
-	}
-	out, err := json.Marshal(cfg)
-	if err != nil {
-		return configStr
-	}
-	return string(out)
 }

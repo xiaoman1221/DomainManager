@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Table, Tabs, Button, Modal, Form, Input, Select, Switch, Tag, Popconfirm, Empty } from 'antd'
-import { PlusOutlined, BellOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Table, Tabs, Button, Modal, Form, Input, InputNumber, Select, Switch, Tag, Popconfirm, Empty, Alert } from 'antd'
+import { PlusOutlined, BellOutlined, DeleteOutlined, PlayCircleOutlined, ClockCircleOutlined } from '@ant-design/icons'
 import * as api from '../api/notification'
 import { notify } from '../utils/toast'
 import PageHead from '../components/PageHead'
@@ -33,6 +33,14 @@ export default function Notifications() {
 
   const [sendingExpiry, setSendingExpiry] = useState(false)
 
+  const [schedules, setSchedules] = useState([])
+  const [schedLoading, setSchedLoading] = useState(false)
+  const [schedDialogOpen, setSchedDialogOpen] = useState(false)
+  const [schedEditing, setSchedEditing] = useState(null)
+  const [schedForm] = Form.useForm()
+  const [schedSaving, setSchedSaving] = useState(false)
+  const [runningId, setRunningId] = useState(null)
+
   // per-type config sub-forms
   const [bark, setBark] = useState({ server: '', key: '', group: '域名管理' })
   const [telegram, setTelegram] = useState({ bot_token: '', chat_id: '' })
@@ -59,9 +67,20 @@ export default function Notifications() {
     }
   }
 
+  const fetchSchedules = async () => {
+    setSchedLoading(true)
+    try {
+      const res = await api.getScheduledTasks()
+      setSchedules(res.data || [])
+    } finally {
+      setSchedLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchChannels()
     fetchLogs()
+    fetchSchedules()
     api.getNotificationTypes().then((res) => setTypes(res.data || [])).catch(() => {})
   }, [])
 
@@ -174,6 +193,75 @@ export default function Notifications() {
     }
   }
 
+  const openSchedDialog = (row) => {
+    setSchedEditing(row || null)
+    if (row) {
+      schedForm.setFieldsValue({ name: row.name, interval_minutes: row.interval_minutes, enabled: row.enabled })
+    } else {
+      schedForm.setFieldsValue({ name: '系统信息定时推送', interval_minutes: 1440, enabled: true })
+    }
+    setSchedDialogOpen(true)
+  }
+
+  const handleSaveSched = async () => {
+    const values = await schedForm.validateFields()
+    setSchedSaving(true)
+    try {
+      const payload = { ...values, type: 'system_info', enabled: values.enabled !== false }
+      if (schedEditing) {
+        await api.updateScheduledTask(schedEditing.id, payload)
+        notify('success', '更新成功')
+      } else {
+        await api.createScheduledTask(payload)
+        notify('success', '创建成功')
+      }
+      setSchedDialogOpen(false)
+      await fetchSchedules()
+    } catch {
+      /* interceptor */
+    } finally {
+      setSchedSaving(false)
+    }
+  }
+
+  const handleDeleteSched = async (id) => {
+    await api.deleteScheduledTask(id)
+    notify('success', '定时任务已删除')
+    await fetchSchedules()
+  }
+
+  const handleToggleSched = async (row) => {
+    const prev = row.enabled
+    setSchedules((list) => list.map((x) => (x.id === row.id ? { ...x, enabled: !prev } : x)))
+    try {
+      await api.updateScheduledTask(row.id, { enabled: !prev })
+      notify('success', !prev ? '已启用' : '已禁用')
+    } catch {
+      setSchedules((list) => list.map((x) => (x.id === row.id ? { ...x, enabled: prev } : x)))
+    }
+  }
+
+  const handleRunSched = async (id) => {
+    setRunningId(id)
+    try {
+      await api.runScheduledTask(id)
+      notify('success', '已立即执行')
+      await fetchSchedules()
+      await fetchLogs()
+    } catch {
+      /* interceptor */
+    } finally {
+      setRunningId(null)
+    }
+  }
+
+  const fmtInterval = (m) => {
+    if (!m || m <= 0) return '-'
+    if (m % 1440 === 0) return `${m / 1440} 天`
+    if (m % 60 === 0) return `${m / 60} 小时`
+    return `${m} 分钟`
+  }
+
   const getChannelName = (id) => channels.find((c) => c.id === id)?.name || '未知'
 
   const channelColumns = [
@@ -206,6 +294,28 @@ export default function Notifications() {
     { title: '时间', dataIndex: 'created_at', key: 'created_at', width: 170, render: fmtDateTime },
   ]
 
+  const scheduleColumns = [
+    { title: '名称', dataIndex: 'name', key: 'name', width: 200, className: 'tbl-first', render: (v) => <span style={{ fontWeight: 500 }}>{v}</span> },
+    { title: '类型', dataIndex: 'type', key: 'type', width: 120, render: (v) => <Tag color="purple" style={{ borderRadius: 4 }}>{v === 'system_info' ? '系统信息' : v}</Tag> },
+    { title: '间隔', dataIndex: 'interval_minutes', key: 'interval_minutes', width: 100, render: fmtInterval },
+    { title: '上次执行', dataIndex: 'last_run_at', key: 'last_run_at', width: 170, responsive: ['md'], render: fmtDateTime },
+    { title: '启用', dataIndex: 'enabled', key: 'enabled', width: 80, align: 'center', render: (v, r) => <Switch size="small" checked={!!v} onChange={() => handleToggleSched(r)} /> },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 220,
+      render: (_, r) => (
+        <>
+          <Button type="text" size="small" icon={<PlayCircleOutlined />} loading={runningId === r.id} onClick={() => handleRunSched(r.id)}>立即执行</Button>
+          <Button type="text" size="small" onClick={() => openSchedDialog(r)}>编辑</Button>
+          <Popconfirm title="确定删除此定时任务？" onConfirm={() => handleDeleteSched(r.id)}>
+            <Button type="text" size="small" danger icon={<DeleteOutlined />}>删除</Button>
+          </Popconfirm>
+        </>
+      ),
+    },
+  ]
+
   const type = Form.useWatch('type', form) || 'bark'
 
   return (
@@ -215,6 +325,7 @@ export default function Notifications() {
         sub="配置推送渠道并查看发送记录"
         actions={<>
           <Button icon={<BellOutlined />} loading={sendingExpiry} onClick={handleSendExpiry}>发送到期提醒</Button>
+          <Button icon={<ClockCircleOutlined />} onClick={() => openSchedDialog(null)}>新建定时推送</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => openDialog(null)}>添加通知渠道</Button>
         </>}
       />
@@ -229,6 +340,16 @@ export default function Notifications() {
               label: `通知渠道`,
               children: (
                 <Table rowKey="id" columns={channelColumns} dataSource={channels} loading={loading} size="middle" pagination={false} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无通知渠道" /> }} />
+              ),
+            },
+            {
+              key: 'schedules',
+              label: `定时推送`,
+              children: (
+                <div>
+                  <Alert type="info" showIcon style={{ marginBottom: 16 }} message="定时推送系统信息将使用您已启用的通知渠道发送（域名/证书数量、30天内到期、注册商、用户、系统版本）；没有启用渠道时不会发送。" />
+                  <Table rowKey="id" columns={scheduleColumns} dataSource={schedules} loading={schedLoading} size="middle" pagination={false} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无定时推送任务，点击右上角「新建定时推送」创建" /> }} />
+                </div>
               ),
             },
             {
@@ -286,6 +407,21 @@ export default function Notifications() {
               </Form.Item>
             </>
           )}
+        </Form>
+      </Modal>
+
+      <Modal title={schedEditing ? '编辑定时推送' : '新建定时推送'} open={schedDialogOpen} onOk={handleSaveSched} onCancel={() => setSchedDialogOpen(false)} confirmLoading={schedSaving} width={480} destroyOnClose>
+        <Form form={schedForm} layout="vertical" requiredMark={false} style={{ marginTop: 16 }}>
+          <Form.Item name="name" label="任务名称" rules={[{ required: true, message: '请输入任务名称' }]}>
+            <Input placeholder="例如：每日系统信息推送" />
+          </Form.Item>
+          <Form.Item name="interval_minutes" label="推送间隔（分钟）" rules={[{ required: true, message: '请输入推送间隔' }]} extra="例如 60=每小时、1440=每天；服务每分钟检查一次">
+            <InputNumber min={1} max={525600} style={{ width: '100%' }} placeholder="1440" />
+          </Form.Item>
+          <Form.Item name="enabled" label="启用" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Alert type="info" showIcon message="推送内容包含域名/证书总数与30天内到期数量、注册商、用户数量和系统版本，通过您已启用的通知渠道发送。" />
         </Form>
       </Modal>
 

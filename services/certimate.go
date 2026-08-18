@@ -1,9 +1,9 @@
 package services
 
 import (
-	"bytes"
 	"DomainManager/database"
 	"DomainManager/models"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,10 +15,10 @@ import (
 )
 
 type CertimateService struct {
-	BaseURL string
+	BaseURL  string
 	Username string
 	Password string
-	Token   string
+	Token    string
 }
 
 type CertimateCertListResponse struct {
@@ -47,10 +47,10 @@ type CertimateCertRecord struct {
 
 func NewCertimateService(config models.CertimateConfig) *CertimateService {
 	return &CertimateService{
-		BaseURL: config.URL,
+		BaseURL:  config.URL,
 		Username: config.Username,
 		Password: config.Password,
-		Token:   config.Token,
+		Token:    config.Token,
 	}
 }
 

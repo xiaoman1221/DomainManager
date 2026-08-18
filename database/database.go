@@ -29,6 +29,7 @@ func Init() {
 		&models.NotificationLog{},
 		&models.SystemSetting{},
 		&models.UserOAuthBinding{},
+		&models.ScheduledTask{},
 	)
 	if err != nil {
 		log.Fatalf("failed to migrate database: %v", err)

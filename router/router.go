@@ -118,6 +118,12 @@ func Setup() *gin.Engine {
 			notifications.POST("/channels/:id/test", handlers.TestNotificationChannel)
 			notifications.GET("/logs", handlers.ListNotificationLogs)
 			notifications.POST("/send-expiry", handlers.SendDomainExpiryNotifications)
+			// Scheduled tasks (定时推送系统信息)
+			notifications.GET("/schedules", handlers.ListScheduledTasks)
+			notifications.POST("/schedules", handlers.CreateScheduledTask)
+			notifications.PUT("/schedules/:id", handlers.UpdateScheduledTask)
+			notifications.DELETE("/schedules/:id", handlers.DeleteScheduledTask)
+			notifications.POST("/schedules/:id/run", handlers.RunScheduledTaskNow)
 		}
 
 		settings := api.Group("/settings", middleware.AuthRequired())

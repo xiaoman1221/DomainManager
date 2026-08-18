@@ -93,7 +93,7 @@ func GetSystemInfo(c *gin.Context) {
 		"certificates": certCount,
 		"registrars":   registrarCount,
 		"users":        userCount,
-		"version":      "1.0.7",
+		"version":      config.Version,
 	})
 }
 

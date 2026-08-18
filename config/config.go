@@ -15,6 +15,7 @@ import (
 // variables are only used as initial defaults on first startup.
 const (
 	SettingWhoisAPIURL        = "WHOIS_API_URL"
+	SettingUaWhoisServer      = "UA_WHOIS_SERVER"
 	SettingICPAPIURL          = "ICP_API_URL"
 	SettingDigitalPlatRDAPURL = "DIGITALPLAT_RDAP_URL"
 
@@ -65,6 +66,7 @@ const (
 // DBSettingKeys lists the settings stored in the database (managed in UI).
 var DBSettingKeys = []string{
 	SettingWhoisAPIURL,
+	SettingUaWhoisServer,
 	SettingICPAPIURL,
 	SettingDigitalPlatRDAPURL,
 
@@ -115,6 +117,7 @@ type Config struct {
 	JWTKey             string
 	DBPath             string
 	WhoisAPIURL        string
+	UaWhoisServer      string
 	ICPAPIURL          string
 	DigitalPlatRDAPURL string
 	OauthGoBaseURL     string
@@ -138,6 +141,10 @@ type Config struct {
 
 var AppConfig *Config
 
+// Version is the application release version shown in the UI and in scheduled
+// system-information pushes.
+const Version = "1.0.8"
+
 func Load() {
 	godotenv.Load()
 
@@ -146,6 +153,7 @@ func Load() {
 		JWTKey:             os.Getenv("JWT_KEY"),
 		DBPath:             getEnv("DB_PATH", "domain_manager.db"),
 		WhoisAPIURL:        getEnv("WHOIS_API_URL", "https://who.zmh.me"),
+		UaWhoisServer:      getEnv("UA_WHOIS_SERVER", "whois.ua:43"),
 		ICPAPIURL:          getEnv("ICP_API_URL", "http://127.0.0.1:16181"),
 		DigitalPlatRDAPURL: getEnv("DIGITALPLAT_RDAP_URL", "https://rdap.digitalplat.org"),
 		OauthGoBaseURL:     strings.TrimRight(getEnv("OAUTHGO_BASE_URL", ""), "/"),
@@ -227,6 +235,9 @@ func ApplyDBSettings(values map[string]string) {
 	if v, ok := values[SettingWhoisAPIURL]; ok {
 		AppConfig.WhoisAPIURL = v
 	}
+	if v, ok := values[SettingUaWhoisServer]; ok {
+		AppConfig.UaWhoisServer = v
+	}
 	if v, ok := values[SettingICPAPIURL]; ok {
 		AppConfig.ICPAPIURL = v
 	}
@@ -283,6 +294,8 @@ func DefaultDBSettingValue(key string) string {
 	switch key {
 	case SettingWhoisAPIURL:
 		return AppConfig.WhoisAPIURL
+	case SettingUaWhoisServer:
+		return AppConfig.UaWhoisServer
 	case SettingICPAPIURL:
 		return AppConfig.ICPAPIURL
 	case SettingDigitalPlatRDAPURL:

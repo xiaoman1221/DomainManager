@@ -307,12 +307,14 @@ func parseTencentPage(body []byte) ([]models.Domain, int, error) {
 	return domains, result.Response.TotalCount, nil
 }
 
-// fetchCloudflareDomains pages through the zones API (per_page max 100);
-// only the first page was fetched before.
+// fetchCloudflareDomains pages through the zones API (per_page max 100) using
+// Email + Global API Key authentication (X-Auth-Email / X-Auth-Key headers).
+// The account email lives in APIKey and the global key in APISecret.
 func fetchCloudflareDomains(registrar models.Registrar) ([]models.Domain, error) {
-	token := registrar.APIKey
-	if token == "" {
-		return nil, fmt.Errorf("cloudflare API token not configured")
+	email := registrar.APIKey
+	apiKey := registrar.APISecret
+	if email == "" || apiKey == "" {
+		return nil, fmt.Errorf("cloudflare email/global API key not configured")
 	}
 
 	client := &http.Client{Timeout: 15 * time.Second}
@@ -324,7 +326,8 @@ func fetchCloudflareDomains(registrar models.Registrar) ([]models.Domain, error)
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("X-Auth-Email", email)
+		req.Header.Set("X-Auth-Key", apiKey)
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := client.Do(req)

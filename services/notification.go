@@ -12,6 +12,8 @@ import (
 	"net/smtp"
 	"strings"
 	"time"
+
+	"DomainManager/config"
 )
 
 type NotificationService struct{}
@@ -280,4 +282,41 @@ func (s *NotificationService) SendByType(notificationType, configStr, title, bod
 	default:
 		return fmt.Errorf("unsupported notification type: %s", notificationType)
 	}
+}
+
+// ApplyGlobalSMTPDefaults merges the system-wide SMTP settings (configured in
+// 系统设置 -> SMTP) into an email channel config when the channel does not
+// specify its own SMTP server.
+func ApplyGlobalSMTPDefaults(channelType, configStr string) string {
+	if channelType != "email" {
+		return configStr
+	}
+	var cfg EmailConfig
+	if err := json.Unmarshal([]byte(configStr), &cfg); err != nil {
+		return configStr
+	}
+	if cfg.SMTPHost == "" {
+		cfg.SMTPHost = config.GetSetting(config.SettingSMTPHost)
+	}
+	if cfg.SMTPPort == "" {
+		cfg.SMTPPort = config.GetSetting(config.SettingSMTPPort)
+	}
+	if cfg.Username == "" {
+		cfg.Username = config.GetSetting(config.SettingSMTPUsername)
+	}
+	if cfg.Password == "" {
+		cfg.Password = config.GetSetting(config.SettingSMTPPassword)
+	}
+	if cfg.From == "" {
+		cfg.From = config.GetSetting(config.SettingSMTPFrom)
+	}
+	if !cfg.UseTLS {
+		enc := config.GetSetting(config.SettingSMTPEncryption)
+		cfg.UseTLS = enc == "ssl" || enc == "tls"
+	}
+	out, err := json.Marshal(cfg)
+	if err != nil {
+		return configStr
+	}
+	return string(out)
 }

@@ -925,3 +925,14 @@ td.tbl-first {
     max-width: 100%;
   }
 }
+
+/* ---------- global toast (antd message): light gray box, dark text ---------- */
+.ant-message .ant-message-notice-content {
+  background: #f4f4f5;
+  color: #1c1917;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.ant-message .ant-message-notice-content .ant-message-custom-content {
+  color: #1c1917;
+}

@@ -19,7 +19,7 @@ func TestApplyGlobalSMTPDefaults(t *testing.T) {
 	}}
 
 	// Email channel without its own SMTP -> filled from global settings.
-	out := applyGlobalSMTPDefaults("email", `{"to":"a@b.com"}`)
+	out := services.ApplyGlobalSMTPDefaults("email", `{"to":"a@b.com"}`)
 	var cfg services.EmailConfig
 	if err := json.Unmarshal([]byte(out), &cfg); err != nil {
 		t.Fatalf("unmarshal merged config: %v", err)
@@ -35,7 +35,7 @@ func TestApplyGlobalSMTPDefaults(t *testing.T) {
 	}
 
 	// Email channel with its own SMTP -> left untouched.
-	out2 := applyGlobalSMTPDefaults("email", `{"smtp_host":"own.example.com","smtp_port":"587","username":"own","to":"a@b.com"}`)
+	out2 := services.ApplyGlobalSMTPDefaults("email", `{"smtp_host":"own.example.com","smtp_port":"587","username":"own","to":"a@b.com"}`)
 	var cfg2 services.EmailConfig
 	if err := json.Unmarshal([]byte(out2), &cfg2); err != nil {
 		t.Fatalf("unmarshal own config: %v", err)
@@ -45,7 +45,7 @@ func TestApplyGlobalSMTPDefaults(t *testing.T) {
 	}
 
 	// Non-email channel -> passthrough unchanged.
-	if got := applyGlobalSMTPDefaults("bark", `{"key":"x"}`); got != `{"key":"x"}` {
+	if got := services.ApplyGlobalSMTPDefaults("bark", `{"key":"x"}`); got != `{"key":"x"}` {
 		t.Fatalf("bark config should pass through, got %q", got)
 	}
 }

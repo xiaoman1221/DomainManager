@@ -24,7 +24,14 @@ func QueryWhois(c *gin.Context) {
 	var info *services.WhoisInfo
 	var err error
 
-	if services.IsDigitalPlatDomain(domain) {
+	if services.IsPPUADomain(domain) {
+		// *.pp.ua free domains: use the UANIC whois server that backs dig.ua.
+		info, err = services.QueryUaWhois(domain)
+		if err != nil {
+			log.Printf("UANIC WHOIS failed for %s, falling back to default WHOIS: %v", domain, err)
+			info, err = services.QueryWhois(domain)
+		}
+	} else if services.IsDigitalPlatDomain(domain) {
 		info, err = services.QueryDigitalPlatWhois(domain)
 		if err != nil {
 			log.Printf("DigitalPlat WHOIS failed for %s, falling back to default WHOIS: %v", domain, err)
@@ -149,10 +156,20 @@ func refreshWhoisForDomain(domain *models.Domain) error {
 	return nil
 }
 
-// queryDomainWhois returns WHOIS info for a domain. For DigitalPlat domains
-// (matched by suffix or by registrar type), it prefers the DigitalPlat WHOIS
-// service and falls back to the default WHOIS API on failure.
+// queryDomainWhois returns WHOIS info for a domain. For *.pp.ua free domains it
+// prefers the UANIC whois server (dig.ua). For DigitalPlat domains (matched by
+// suffix or by registrar type) it prefers the DigitalPlat WHOIS service. Both
+// fall back to the default WHOIS API on failure.
 func queryDomainWhois(domain *models.Domain) (*services.WhoisInfo, error) {
+	if services.IsPPUADomain(domain.Name) {
+		info, err := services.QueryUaWhois(domain.Name)
+		if err == nil {
+			return info, nil
+		}
+		log.Printf("UANIC WHOIS failed for %s, falling back to default WHOIS: %v", domain.Name, err)
+		return services.QueryWhois(domain.Name)
+	}
+
 	useDigitalPlat := services.IsDigitalPlatDomain(domain.Name)
 	if !useDigitalPlat && domain.Registrar != "" {
 		var registrar models.Registrar

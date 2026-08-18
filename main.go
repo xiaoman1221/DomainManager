@@ -4,6 +4,7 @@ import (
 	"DomainManager/config"
 	"DomainManager/database"
 	"DomainManager/router"
+	"DomainManager/services"
 	"embed"
 	"io"
 	"io/fs"
@@ -25,6 +26,8 @@ func main() {
 	// Load runtime settings (WHOIS/ICP/OauthGo etc.) from the database; env only
 	// provides initial defaults on first startup.
 	database.LoadSettingsIntoConfig()
+	// Start the background job runner (定时推送系统信息等).
+	services.StartScheduler()
 
 	r := router.Setup()
 

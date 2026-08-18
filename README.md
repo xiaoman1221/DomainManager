@@ -5,7 +5,7 @@
 ## 功能特性
 
 - **域名管理** - 域名的增删改查、批量操作、CSV导入导出
-- **WHOIS查询** - 域名注册信息查询（依赖 [next-whois](https://github.com/zmh-program/next-whois)）
+- **WHOIS查询** - 域名注册信息查询（依赖 [next-whois](https://github.com/zmh-program/next-whois)；`*.pp.ua` 免费二级域名走 UANIC 官方 whois 服务器，即 [dig.ua](https://dig.ua) 的数据源）
 - **ICP备案查询** - 域名备案信息查询（依赖 [ICP_Query](https://github.com/HG-ha/ICP_Query)）
 - **价格比对** - 多注册商域名续费价格对比（当前为估算参考价，非实时注册商报价）
 - **注册商管理** - 注册商信息维护、域名批量导入
@@ -182,4 +182,3 @@ DomainManager/
 ## License
 
 MIT
-

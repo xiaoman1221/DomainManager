@@ -7,12 +7,50 @@ import PageHead from '../components/PageHead'
 import { downloadBlob } from '../utils/download'
 import { fmtDateTime } from '../utils/format'
 
+// Per-type credential field labels using each registrar's official naming.
+// key -> APIKey, secret -> APISecret, extra -> APIExtra (all optional).
+const REGISTRAR_FIELDS = {
+  aliyun: { key: 'AccessKey ID', secret: 'AccessKey Secret' },
+  aliyun_intl: { key: 'AccessKey ID', secret: 'AccessKey Secret' },
+  tencent: { key: 'SecretId', secret: 'SecretKey' },
+  tencent_intl: { key: 'SecretId', secret: 'SecretKey' },
+  huawei: { key: 'Access Key ID', secret: 'Secret Access Key' },
+  cloudflare: { key: '账号邮箱 (Email)', secret: '全局 API 密钥 (Global API Key)' },
+  godaddy: { key: 'API Key', secret: 'API Secret' },
+  namecheap: { key: 'ApiUser（账户名）', secret: 'API Key', extra: 'UserName（需管理的账户，通常与 ApiUser 相同）' },
+  namesilo: { key: 'API Key' },
+  dynadot: { key: 'API Key' },
+  digitalplat: { key: 'API Key' },
+  porkbun: { key: 'API Key', secret: 'Secret Key' },
+  amazon: { key: 'Access Key ID', secret: 'Secret Access Key' },
+  other: {},
+}
+
+// One-line setup documentation shown in the edit dialog per registrar type.
+const REGISTRAR_FIELD_DOCS = {
+  aliyun: '在阿里云「RAM 访问控制 → 用户 → 创建 AccessKey」获取 AccessKey ID / AccessKey Secret。',
+  aliyun_intl: '在阿里云国际版「RAM 访问控制」中创建 AccessKey，用于调用域名 API。',
+  tencent: '在腾讯云「访问管理 CAM → API 密钥管理」中创建 SecretId / SecretKey。',
+  tencent_intl: '在腾讯云国际版「访问管理」中创建 SecretId / SecretKey。',
+  huawei: '在华为云「我的凭证 → 访问密钥」中创建 AK/SK（Access Key ID / Secret Access Key）。',
+  cloudflare: '在 Cloudflare「我的个人资料 → API 令牌」中获取 Global API Key，配合账号邮箱使用。',
+  godaddy: '在 GoDaddy 开发者门户 developer.godaddy.com 创建 Production 环境 API Key / API Secret。',
+  namecheap: '在 Namecheap「账户设置 → API」中开启 API 并创建 API Key；ApiUser 填账户名，UserName 填需管理的账户（通常与 ApiUser 相同）。',
+  namesilo: '在 NameSilo「Account → API Management」中创建 API Key。',
+  dynadot: '在 Dynadot「My Account → API」中获取 API Key。',
+  digitalplat: '在 DigitalPlat 控制台 dash.domain.digitalplat.org 的 API Keys 页面创建 API Key。',
+  porkbun: '在 Porkbun「Account → API Access」中创建 API Key / Secret Key。',
+  amazon: '在 AWS IAM 中创建访问密钥（Access Key ID / Secret Access Key），并授予 Route53 只读权限。',
+  other: '该类型不支持自动导入，请在「导入域名」弹窗中手动输入域名列表。',
+}
+
 export default function Registrars() {
   const [registrars, setRegistrars] = useState([])
   const [loading, setLoading] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form] = Form.useForm()
+  const selectedType = Form.useWatch('type', form)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [importRegistrar, setImportRegistrar] = useState(null)
@@ -174,12 +212,15 @@ export default function Registrars() {
       key: 'api',
       width: 110,
       responsive: ['md'],
-      render: (_, r) =>
-        r.api_key ? (
+      render: (_, r) => {
+        const fields = REGISTRAR_FIELDS[r.type] || { key: 'API Key', secret: 'API Secret' }
+        const configured = !!fields.key && !!r.api_key && (!fields.secret || !!r.api_secret)
+        return configured ? (
           <span style={{ color: '#16a34a' }}><CheckOutlined /> 已配置</span>
         ) : (
           <span className="faint"><CloseOutlined /> 未配置</span>
-        ),
+        )
+      },
     },
     { title: '自动同步', dataIndex: 'sync_enabled', key: 'sync_enabled', width: 90, align: 'center', responsive: ['md'], render: (v, r) => <Switch size="small" checked={!!v} onChange={() => toggleField(r, 'sync_enabled')} /> },
     { title: '启用', dataIndex: 'enabled', key: 'enabled', width: 70, align: 'center', render: (v, r) => <Switch size="small" checked={!!v} onChange={() => toggleField(r, 'enabled')} /> },
@@ -233,18 +274,29 @@ export default function Registrars() {
           <Form.Item name="api_endpoint" label="API 端点">
             <Input placeholder="API 地址（可选，使用默认）" />
           </Form.Item>
-          {form.getFieldValue('type') === 'digitalplat' && (
-            <Alert type="info" showIcon style={{ marginBottom: 16 }} message="DigitalPlat：在 https://dash.domain.digitalplat.org/dashboard/api/keys 创建 API Key 填入下方 APIKey 字段" />
-          )}
-          <Form.Item name="api_key" label="API Key">
-            <Input placeholder="API Key / AccessKey ID" />
-          </Form.Item>
-          <Form.Item name="api_secret" label="API Secret">
-            <Input.Password placeholder="API Secret / AccessKey Secret" />
-          </Form.Item>
-          <Form.Item name="api_extra" label="额外参数">
-            <Input placeholder="其他参数（如 Namecheap 用户名等）" />
-          </Form.Item>
+          <Alert type="info" showIcon style={{ marginBottom: 16 }} message={REGISTRAR_FIELD_DOCS[selectedType] || '填写该注册商 API 凭据，用于自动导入域名'} />
+          {(() => {
+            const fields = REGISTRAR_FIELDS[selectedType] || { key: 'API Key', secret: 'API Secret' }
+            return (
+              <>
+                {fields.key && (
+                  <Form.Item name="api_key" label={fields.key}>
+                    <Input placeholder={fields.key} autoComplete="off" />
+                  </Form.Item>
+                )}
+                {fields.secret && (
+                  <Form.Item name="api_secret" label={fields.secret}>
+                    <Input.Password placeholder={fields.secret} autoComplete="new-password" />
+                  </Form.Item>
+                )}
+                {fields.extra && (
+                  <Form.Item name="api_extra" label={fields.extra}>
+                    <Input placeholder={fields.extra} autoComplete="off" />
+                  </Form.Item>
+                )}
+              </>
+            )
+          })()}
           <div style={{ display: 'flex', gap: 32 }}>
             <Form.Item name="enabled" label="启用" valuePropName="checked">
               <Switch />

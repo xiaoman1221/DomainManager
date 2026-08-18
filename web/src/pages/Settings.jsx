@@ -50,6 +50,7 @@ export default function Settings() {
       const d = res || {}
       basicForm.setFieldsValue({
         WHOIS_API_URL: d.WHOIS_API_URL || '',
+        UA_WHOIS_SERVER: d.UA_WHOIS_SERVER || 'whois.ua:43',
         ICP_API_URL: d.ICP_API_URL || '',
         DIGITALPLAT_RDAP_URL: d.DIGITALPLAT_RDAP_URL || '',
       })
@@ -188,6 +189,7 @@ export default function Settings() {
       children: (
         <Form form={basicForm} layout="vertical" requiredMark={false} style={{ maxWidth: 560 }}>
           <Form.Item name="WHOIS_API_URL" label="WHOIS API 地址"><Input placeholder="https://who.zmh.me" /></Form.Item>
+          <Form.Item name="UA_WHOIS_SERVER" label="UA（乌克兰）WHOIS 服务器" extra="官方 dig.ua 的底层数据源，用于 *.pp.ua 等 .ua 域名查询"><Input placeholder="whois.ua:43" /></Form.Item>
           <Form.Item name="ICP_API_URL" label="ICP 备案 API 地址"><Input placeholder="http://127.0.0.1:16181" /></Form.Item>
           <Form.Item name="DIGITALPLAT_RDAP_URL" label="DigitalPlat RDAP 地址"><Input placeholder="https://rdap.digitalplat.org" /></Form.Item>
           {renderSaveBtn('basic')}
